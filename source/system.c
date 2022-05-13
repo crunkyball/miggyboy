@@ -22,8 +22,6 @@ byte* Register_LY = &Mem[REGISTER_LY_ADDR];
 byte* Register_WY = &Mem[REGISTER_WY_ADDR];
 byte* Register_WX = &Mem[REGISTER_WX_ADDR];
 
-//static const int CLOCK_CYCLES = 4194304;  //For some reason this isn't considered a constant value below so have to use a define.
-#define CLOCK_CYCLES 4194304
 static const int CLOCK_CYCLES_PER_MS = CLOCK_CYCLES / 1000;
 static int TickCycles = 0;
 

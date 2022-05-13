@@ -9,16 +9,18 @@ bool PPUInit()
 int ScanLine = 0;
 int CycleCounter = 0;
 
+#define NUM_SCANLINES 154	//0-143 for resolution, 144-153 for vblank
+#define CYCLES_PER_FRAME 70224
+
+static const cycles CYCLES_PER_SCANLINE = CYCLES_PER_FRAME / NUM_SCANLINES;
+
 void PPUTick(cycles numCycles)
 {
-	//Completely fake for now to get the boot rom working. Set the scanline based on 144/60, which isn't the right thing to do!
-	const cycles CYCLES_PER_SCANLINE = 485;
-
 	if ((CycleCounter += numCycles) >= CYCLES_PER_SCANLINE)
 	{
 		CycleCounter -= CYCLES_PER_SCANLINE;
 
-		if (ScanLine >= 144)
+		if (ScanLine >= NUM_SCANLINES)
 		{
 			ScanLine = 0;
 		}

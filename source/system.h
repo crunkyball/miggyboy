@@ -3,6 +3,8 @@
 
 #include "types.h"
 
+#define CLOCK_CYCLES 4194304
+
 #define MEM_SIZE 64*1024
 
 #define ROM_ADDR 0
