@@ -54,6 +54,8 @@ struct
     uint16_t PC; //Program counter
 } static Register;
 
+static bool IME;   //Interrupt master flag.
+
 //Operator helpers
 enum Flag
 {
@@ -94,6 +96,21 @@ static bool IsFlagSet(enum Flag flag)
     return (Register.F & flag) == flag;
 }
 
+static bool IsRegisterBitSet(const byte* pR, int bit)
+{
+    return (*pR & (1 << bit)) != 0;
+}
+
+static void SetRegisterBit(byte* pR, int bit)
+{
+    *pR |= (1 << bit);
+}
+
+static void UnsetRegisterBit(byte* pR, int bit)
+{
+    *pR &= ~(1 << bit);
+}
+
 static int8_t FromTwosComplement(byte b)
 {
     /*if ((b & (1 << 7)) == 0)
@@ -125,7 +142,7 @@ static uint16_t StackPop()
 static cycles Op_NOP()
 {
     //1 byte, 4 cycles, No flags
-    //Register.PC += 1; //Temp
+    Register.PC += 1;
     return 4;
 }
 
@@ -169,6 +186,14 @@ static cycles Op_LoadRegisterAddr(byte* pR, uint16_t addr)
     return 8;
 }
 
+static cycles Op_LoadAddrImmediate(uint16_t* pRAddr)
+{
+    //2 bytes, 12 cycles, No flags
+    Mem[*pRAddr] = Mem[Register.PC + 1];
+    Register.PC += 2;
+    return 12;
+}
+
 static cycles Op_LoadAddrRegisterAndInc(uint16_t* pRAddr, const byte* pR)
 {
     //1 byte, 8 cycles, No flags
@@ -182,6 +207,24 @@ static cycles Op_LoadAddrRegisterAndDec(uint16_t* pRAddr, const byte* pR)
 {
     //1 byte, 8 cycles, No flags
     Mem[*pRAddr] = *pR;
+    (*pRAddr)--;
+    Register.PC += 1;
+    return 8;
+}
+
+static cycles Op_LoadRegisterAddrAndInc(byte* pR, uint16_t* pRAddr)
+{
+    //1 byte, 8 cycles, No flags
+    *pR = Mem[*pRAddr];
+    (*pRAddr)++;
+    Register.PC += 1;
+    return 8;
+}
+
+static cycles Op_LoadRegisterAddrAndDec(byte* pR, uint16_t* pRAddr)
+{
+    //1 byte, 8 cycles, No flags
+    *pR = Mem[*pRAddr];
     (*pRAddr)--;
     Register.PC += 1;
     return 8;
@@ -278,11 +321,38 @@ static cycles Op_CompareImmediate()
     return 8;
 }
 
+static cycles Op_And(byte* pR)
+{
+    //1 byte, 4 cycles, Flags Z010
+    Register.A &= *pR;
+    SetFlags(Register.A == 0 ? FlagSet_On : FlagSet_Off, FlagSet_Off, FlagSet_On, FlagSet_Off);
+    Register.PC += 1;
+    return 4;
+}
+
+static cycles Op_Or(byte* pR)
+{
+    //1 byte, 4 cycles, Flags Z000
+    Register.A |= *pR;
+    SetZeroFlag(Register.A == 0);
+    Register.PC += 1;
+    return 4;
+}
+
 static cycles Op_Xor(byte* pR)
 {
     //1 byte, 4 cycles, Flags Z000
     Register.A ^= *pR;
     SetZeroFlag(Register.A == 0);
+    Register.PC += 1;
+    return 4;
+}
+
+static cycles Op_Complement()
+{
+    //1 byte, 4 cycles, Flags -11-
+    Register.A = ~Register.A;
+    SetFlags(FlagSet_Leave, FlagSet_On, FlagSet_On, FlagSet_Leave);
     Register.PC += 1;
     return 4;
 }
@@ -400,6 +470,13 @@ static cycles Op_Jump()
     return 12;
 }
 
+static cycles Op_JumpAddr()
+{
+    //3 bytes, 16 cycles, No flags
+    Register.PC = (Register.PC = Mem[Register.PC + 1] | (Mem[Register.PC + 2] << 8));
+    return 16;
+}
+
 static cycles Op_JumpIf(enum Flag flag, bool ifTrue)
 {
     //2 bytes, 12/8 cycles, No flags
@@ -423,9 +500,33 @@ static cycles Op_Call()
     return 24;
 }
 
+static cycles Op_DisableInterrupts()
+{
+    //1 byte, 4 cycles, No flags
+    Register.PC += 1;
+    IME = false;
+    return 4;
+}
+
+static cycles Op_EnableInterrupts()
+{
+    //1 byte, 4 cycles, No flags
+    Register.PC += 1;
+    IME = true;
+    return 4;
+}
+
 static cycles Op_Return()
 {
     //1 byte, 16 cycles, No flags
+    Register.PC = StackPop();
+    return 16;
+}
+
+static cycles Op_EnableInterruptsAndReturn()
+{
+    //1 byte, 16 cycles, No flags
+    IME = true;
     Register.PC = StackPop();
     return 16;
 }
@@ -573,8 +674,13 @@ static cycles HandleOpCode()
         case 0xE2: return Op_LoadAddrRegister(0xFF00 + Register.C, &Register.A);
         case 0xF2: return Op_LoadRegisterAddr(&Register.A, 0xFF00 + Register.C);
 
+        case 0x36: return Op_LoadAddrImmediate(&Register.HL);
+
         case 0x22: return Op_LoadAddrRegisterAndInc(&Register.HL, &Register.A);
         case 0x32: return Op_LoadAddrRegisterAndDec(&Register.HL, &Register.A);
+
+        case 0x2A: return Op_LoadRegisterAddrAndInc(&Register.A, &Register.HL);
+        case 0x3A: return Op_LoadRegisterAddrAndDec(&Register.A, &Register.HL);
 
         //These don't need to be any more complicated as they only work with the A register.
         case 0xE0: return Op_LoadImmediateAddr8FromA();
@@ -603,6 +709,24 @@ static cycles HandleOpCode()
         case 0xBE: return Op_CompareAddr();
         case 0xFE: return Op_CompareImmediate();
 
+        //And
+        case 0xA7: return Op_And(&Register.A);
+        case 0xA0: return Op_And(&Register.B);
+        case 0xA1: return Op_And(&Register.C);
+        case 0xA2: return Op_And(&Register.D);
+        case 0xA3: return Op_And(&Register.E);
+        case 0xA4: return Op_And(&Register.H);
+        case 0xA5: return Op_And(&Register.L);
+
+        //Or
+        case 0xB7: return Op_Or(&Register.A);
+        case 0xB0: return Op_Or(&Register.B);
+        case 0xB1: return Op_Or(&Register.C);
+        case 0xB2: return Op_Or(&Register.D);
+        case 0xB3: return Op_Or(&Register.E);
+        case 0xB4: return Op_Or(&Register.H);
+        case 0xB5: return Op_Or(&Register.L);
+
         //Xor
         case 0xAF: return Op_Xor(&Register.A);
         case 0xA8: return Op_Xor(&Register.B);
@@ -611,6 +735,9 @@ static cycles HandleOpCode()
         case 0xAB: return Op_Xor(&Register.E);
         case 0xAC: return Op_Xor(&Register.H);
         case 0xAD: return Op_Xor(&Register.L);
+
+        //Complement
+        case 0x2F: return Op_Complement();
 
         //Increment
         case 0x3C: return Op_Increment8(&Register.A);
@@ -664,16 +791,22 @@ static cycles HandleOpCode()
 
         //Jumps
         case 0x18: return Op_Jump();
+        case 0xC3: return Op_JumpAddr();
         case 0x20: return Op_JumpIf(Flag_Zero, false);
         case 0x28: return Op_JumpIf(Flag_Zero, true);
         case 0x30: return Op_JumpIf(Flag_Carry, false);
         case 0x38: return Op_JumpIf(Flag_Carry, true);
 
         //Calls
-        case 0xCD: return Op_Call(); break;
+        case 0xCD: return Op_Call();
+
+        //Interrupts
+        case 0xF3: return Op_DisableInterrupts();
+        case 0xFB: return Op_EnableInterrupts();
 
         //Returns
-        case 0xC9: return Op_Return(); break;
+        case 0xC9: return Op_Return();
+        case 0xD9: return Op_EnableInterruptsAndReturn();
 
         //Rotate A Left
         case 0x07: return Op_RotateLeftWithCarryA();
@@ -778,9 +911,9 @@ static cycles HandleOpCode()
     return 0;
 }
 
-bool CPUInit()
+bool CPUInit(uint16_t startAddr)
 {
-    Register.PC = 0;
+    Register.PC = startAddr;
     return true;
 }
 

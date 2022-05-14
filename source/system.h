@@ -3,8 +3,6 @@
 
 #include "types.h"
 
-#define CLOCK_CYCLES 4194304
-
 #define MEM_SIZE 64*1024
 
 #define ROM_ADDR 0
@@ -20,6 +18,9 @@
 extern byte Mem[];
 
 //I/O Registers
+#define REGISTER_IF_ADDR 0xFF0F
+extern byte* Register_IF;
+
 #define REGISTER_LCDC_ADDR 0xFF40
 extern byte* Register_LCDC;
 
@@ -38,6 +39,9 @@ extern byte* Register_WY;
 #define REGISTER_WX_ADDR 0xFF4B
 extern byte* Register_WX;
 
+#define REGISTER_IE_ADDR 0xFFFF
+extern byte* Register_IE;
+
 //Graphics Stuff
 #define BACKGROUND_RES_X 256
 #define BACKGROUND_RES_Y 256
@@ -52,11 +56,7 @@ extern byte* Register_WX;
 
 static const int BACKGROUND_TILES_PER_LINE = BACKGROUND_RES_X / TILE_WIDTH;
 
-bool SystemInit();
+bool SystemInit(const char* pRomFile);
 void SystemTick(uint32_t dt);
-
-bool IsRegisterBitSet(const byte* pR, int bit);
-void SetRegisterBit(byte* pR, int bit);
-void UnsetRegisterBit(byte* pR, int bit);
 
 #endif

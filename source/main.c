@@ -29,7 +29,14 @@ void Run()
 
 int main(int argc, char** argv)
 {
-    if (!SystemInit())
+    const char* pRomFile = NULL;
+    
+    if (argc > 1)
+    {
+        pRomFile = argv[1];
+    }
+
+    if (!SystemInit(pRomFile))
     {
         return -1;
     }
