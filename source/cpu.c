@@ -299,7 +299,7 @@ static void DoCompare(byte val)
 
 static cycles Op_CompareRegister(const byte* pR)
 {
-    //1 byte, 4 cycles, Z1HC
+    //1 byte, 4 cycles, Flags Z1HC
     DoCompare(*pR);
     Register.PC += 1;
     return 4;
@@ -307,7 +307,7 @@ static cycles Op_CompareRegister(const byte* pR)
 
 static cycles Op_CompareAddr()
 {
-    //1 byte, 8 cycles, Z1HC
+    //1 byte, 8 cycles, Flags Z1HC
     DoCompare(Mem[Register.HL]);
     Register.PC += 1;
     return 8;
@@ -315,37 +315,76 @@ static cycles Op_CompareAddr()
 
 static cycles Op_CompareImmediate()
 {
-    //2 bytes, 8 cycles, Z1HC
+    //2 bytes, 8 cycles, Flags Z1HC
     DoCompare(Mem[Register.PC + 1]);
     Register.PC += 2;
     return 8;
 }
 
-static cycles Op_And(byte* pR)
+static void DoAnd(byte val)
+{
+    Register.A &= val;
+    SetFlags(Register.A == 0 ? FlagSet_On : FlagSet_Off, FlagSet_Off, FlagSet_On, FlagSet_Off);
+}
+
+static cycles Op_AndRegister(byte* pR)
 {
     //1 byte, 4 cycles, Flags Z010
-    Register.A &= *pR;
-    SetFlags(Register.A == 0 ? FlagSet_On : FlagSet_Off, FlagSet_Off, FlagSet_On, FlagSet_Off);
+    DoAnd(*pR);
     Register.PC += 1;
     return 4;
 }
 
-static cycles Op_Or(byte* pR)
+static cycles Op_AndImmediate()
+{
+    //2 bytes, 8 cycles, Flags Z010
+    DoAnd(Mem[Register.PC + 1]);
+    Register.PC += 2;
+    return 8;
+}
+
+static void DoOr(byte val)
+{
+    Register.A |= val;
+    SetZeroFlag(Register.A == 0);
+}
+
+static cycles Op_OrRegister(byte* pR)
 {
     //1 byte, 4 cycles, Flags Z000
-    Register.A |= *pR;
-    SetZeroFlag(Register.A == 0);
+    DoOr(*pR);
     Register.PC += 1;
     return 4;
 }
 
-static cycles Op_Xor(byte* pR)
+static cycles Op_OrImmediate()
+{
+    //2 bytes, 8 cycles, Flags Z000
+    DoOr(Mem[Register.PC + 1]);
+    Register.PC += 2;
+    return 8;
+}
+
+static void DoXor(byte val)
+{
+    Register.A ^= val;
+    SetZeroFlag(Register.A == 0);
+}
+
+static cycles Op_XorRegister(byte* pR)
 {
     //1 byte, 4 cycles, Flags Z000
-    Register.A ^= *pR;
-    SetZeroFlag(Register.A == 0);
+    DoXor(*pR);
     Register.PC += 1;
     return 4;
+}
+
+static cycles Op_XorImmediate()
+{
+    //2 bytes, 8 cycles, Flags Z000
+    DoXor(Mem[Register.PC + 1]);
+    Register.PC += 2;
+    return 8;
 }
 
 static cycles Op_Complement()
@@ -399,7 +438,7 @@ static cycles Op_Decrement16(uint16_t* pR)
 
 static void DoAdd(byte val)
 {
-    bool halfCarry = (Register.A & 0xf) + (val & 0xf) > 0xf;
+    bool halfCarry = (Register.A & 0xF) + (val & 0xF) > 0xF;
     bool carry = (Register.A + val) > 0xFF;
     Register.A = FromTwosComplement(Register.A) + FromTwosComplement(val);
     SetFlags(Register.A == 0 ? FlagSet_On : FlagSet_Off, FlagSet_Off, halfCarry ? FlagSet_On : FlagSet_Off, carry ? FlagSet_On : FlagSet_Off);
@@ -407,7 +446,7 @@ static void DoAdd(byte val)
 
 static cycles Op_AddRegister(const byte* pR)
 {
-    //1 byte, 4 cycles, Z0HC
+    //1 byte, 4 cycles, Flags Z0HC
     DoAdd(*pR);
     Register.PC += 1;
     return 4;
@@ -415,7 +454,7 @@ static cycles Op_AddRegister(const byte* pR)
 
 static cycles Op_AddAddr()
 {
-    //1 byte, 8 cycles, Z0HC
+    //1 byte, 8 cycles, Flags Z0HC
     DoAdd(Mem[Register.HL]);
     Register.PC += 1;
     return 8;
@@ -423,9 +462,20 @@ static cycles Op_AddAddr()
 
 static cycles Op_AddImmediate()
 {
-    //2 bytes, 8 cycles, Z0HC
+    //2 bytes, 8 cycles, Flags Z0HC
     DoAdd(Mem[Register.PC + 1]);
     Register.PC += 2;
+    return 8;
+}
+
+static cycles Op_AddHLRegister16(const uint16_t* pR)
+{
+    //1 byte, 8 cycles, Flags -0CH
+    bool halfCarry = (Register.HL & 0xFF) + (*pR & 0xFF) > 0xFF;
+    bool carry = (Register.HL + *pR) > 0xFFFF;
+    Register.HL += *pR;
+    SetFlags(FlagSet_Leave, FlagSet_Off, halfCarry ? FlagSet_On : FlagSet_Off, carry ? FlagSet_On : FlagSet_Off);
+    Register.PC += 1;
     return 8;
 }
 
@@ -440,7 +490,7 @@ static void DoSubtract(byte val)
 
 static cycles Op_SubtractRegister(const byte* pR)
 {
-    //1 byte, 4 cycles, Z1HC
+    //1 byte, 4 cycles, Flags Z1HC
     DoSubtract(*pR);
     Register.PC += 1;
     return 4;
@@ -448,7 +498,7 @@ static cycles Op_SubtractRegister(const byte* pR)
 
 static cycles Op_SubtractAddr()
 {
-    //1 byte, 8 cycles, Z1HC
+    //1 byte, 8 cycles, Flags Z1HC
     DoSubtract(Mem[Register.HL]);
     Register.PC += 1;
     return 8;
@@ -456,7 +506,7 @@ static cycles Op_SubtractAddr()
 
 static cycles Op_SubtractImmediate()
 {
-    //2 bytes, 8 cycles, Z1HC
+    //2 bytes, 8 cycles, Flags Z1HC
     DoSubtract(Mem[Register.PC + 1]);
     Register.PC += 2;
     return 8;
@@ -475,6 +525,13 @@ static cycles Op_JumpAddr()
     //3 bytes, 16 cycles, No flags
     Register.PC = (Register.PC = Mem[Register.PC + 1] | (Mem[Register.PC + 2] << 8));
     return 16;
+}
+
+static cycles Op_JumpRegister(const uint16_t* pR)
+{
+    //1 byte, 4 cycles, No flags
+    Register.PC = *pR;
+    return 4;
 }
 
 static cycles Op_JumpIf(enum Flag flag, bool ifTrue)
@@ -531,13 +588,47 @@ static cycles Op_EnableInterruptsAndReturn()
     return 16;
 }
 
-static cycles Op_TestBit(const byte* pR, byte bit)
+static cycles Op_Swap(byte* pR)
+{
+    //2 bytes, 8 cycles, Flags Z000
+    *pR = ((*pR & 0xF) << 4) | ((*pR & 0xF0) >> 4);
+    SetZeroFlag(*pR == 0);
+    Register.PC += 2;
+    return 8;
+}
+
+static cycles Op_SetRegisterBit(byte* pR, byte bit)
+{
+    //2 bytes, 8 cycles, No flags
+    *pR |= (1 << bit);
+    Register.PC += 2;
+    return 8;
+}
+
+static cycles Op_SetAddrBit(uint16_t addr, byte bit)
+{
+    //2 bytes, 16 cycles, No flags
+    Mem[addr] |= (1 << bit);
+    Register.PC += 2;
+    return 16;
+}
+
+static cycles Op_TestRegisterBit(const byte* pR, byte bit)
 {
     //2 bytes, 8 cycles, Flags Z01-
     bool bitZero = (*pR & (1 << bit)) == 0;
     SetFlags(bitZero ? FlagSet_On : FlagSet_Off, FlagSet_Off, FlagSet_On, FlagSet_Leave);
     Register.PC += 2;
     return 8;
+}
+
+static cycles Op_TestAddrBit(uint16_t addr, byte bit)
+{
+    //2 bytes, 12 cycles, Flags Z01-
+    bool bitZero = (Mem[addr] & (1 << bit)) == 0;
+    SetFlags(bitZero ? FlagSet_On : FlagSet_Off, FlagSet_Off, FlagSet_On, FlagSet_Leave);
+    Register.PC += 2;
+    return 12;
 }
 
 static cycles Op_RotateLeftWithCarry(byte* pR)
@@ -579,6 +670,22 @@ static cycles Op_RotateLeftThroughCarryA()
     SetFlags(Register.A == 0 ? FlagSet_On : FlagSet_Off, FlagSet_Off, FlagSet_Off, bit7 ? FlagSet_On : FlagSet_Off);
     Register.PC += 1;
     return 4;
+}
+
+static cycles Op_SetCarryFlag()
+{
+    //1 byte, 4 cycles, Flags -001
+    SetFlags(FlagSet_Leave, FlagSet_Off, FlagSet_Off, FlagSet_On);
+    Register.PC += 1;
+    return 4;
+}
+
+static cycles Op_Restart(uint16_t addr)
+{
+    //1 byte, 16 cycles, No flags
+    StackPush(Register.PC);
+    Register.PC = addr;
+    return 16;
 }
 
 static cycles HandleOpCode()
@@ -710,31 +817,34 @@ static cycles HandleOpCode()
         case 0xFE: return Op_CompareImmediate();
 
         //And
-        case 0xA7: return Op_And(&Register.A);
-        case 0xA0: return Op_And(&Register.B);
-        case 0xA1: return Op_And(&Register.C);
-        case 0xA2: return Op_And(&Register.D);
-        case 0xA3: return Op_And(&Register.E);
-        case 0xA4: return Op_And(&Register.H);
-        case 0xA5: return Op_And(&Register.L);
+        case 0xA7: return Op_AndRegister(&Register.A);
+        case 0xA0: return Op_AndRegister(&Register.B);
+        case 0xA1: return Op_AndRegister(&Register.C);
+        case 0xA2: return Op_AndRegister(&Register.D);
+        case 0xA3: return Op_AndRegister(&Register.E);
+        case 0xA4: return Op_AndRegister(&Register.H);
+        case 0xA5: return Op_AndRegister(&Register.L);
+        case 0xE6: return Op_AndImmediate();
 
         //Or
-        case 0xB7: return Op_Or(&Register.A);
-        case 0xB0: return Op_Or(&Register.B);
-        case 0xB1: return Op_Or(&Register.C);
-        case 0xB2: return Op_Or(&Register.D);
-        case 0xB3: return Op_Or(&Register.E);
-        case 0xB4: return Op_Or(&Register.H);
-        case 0xB5: return Op_Or(&Register.L);
+        case 0xB7: return Op_OrRegister(&Register.A);
+        case 0xB0: return Op_OrRegister(&Register.B);
+        case 0xB1: return Op_OrRegister(&Register.C);
+        case 0xB2: return Op_OrRegister(&Register.D);
+        case 0xB3: return Op_OrRegister(&Register.E);
+        case 0xB4: return Op_OrRegister(&Register.H);
+        case 0xB5: return Op_OrRegister(&Register.L);
+        case 0xF6: return Op_OrImmediate();
 
         //Xor
-        case 0xAF: return Op_Xor(&Register.A);
-        case 0xA8: return Op_Xor(&Register.B);
-        case 0xA9: return Op_Xor(&Register.C);
-        case 0xAA: return Op_Xor(&Register.D);
-        case 0xAB: return Op_Xor(&Register.E);
-        case 0xAC: return Op_Xor(&Register.H);
-        case 0xAD: return Op_Xor(&Register.L);
+        case 0xAF: return Op_XorRegister(&Register.A);
+        case 0xA8: return Op_XorRegister(&Register.B);
+        case 0xA9: return Op_XorRegister(&Register.C);
+        case 0xAA: return Op_XorRegister(&Register.D);
+        case 0xAB: return Op_XorRegister(&Register.E);
+        case 0xAC: return Op_XorRegister(&Register.H);
+        case 0xAD: return Op_XorRegister(&Register.L);
+        case 0xEE: return Op_XorImmediate();
 
         //Complement
         case 0x2F: return Op_Complement();
@@ -777,6 +887,11 @@ static cycles HandleOpCode()
         case 0x85: return Op_AddRegister(&Register.L);
         case 0x86: return Op_AddAddr();
         case 0xC6: return Op_AddImmediate();
+        
+        case 0x09: return Op_AddHLRegister16(&Register.BC);
+        case 0x19: return Op_AddHLRegister16(&Register.DE);
+        case 0x29: return Op_AddHLRegister16(&Register.HL);
+        case 0x39: return Op_AddHLRegister16(&Register.SP);
 
         //Subtract
         case 0x97: return Op_SubtractRegister(&Register.A);
@@ -792,6 +907,7 @@ static cycles HandleOpCode()
         //Jumps
         case 0x18: return Op_Jump();
         case 0xC3: return Op_JumpAddr();
+        case 0xE9: return Op_JumpRegister(&Register.HL);
         case 0x20: return Op_JumpIf(Flag_Zero, false);
         case 0x28: return Op_JumpIf(Flag_Zero, true);
         case 0x30: return Op_JumpIf(Flag_Carry, false);
@@ -812,6 +928,18 @@ static cycles HandleOpCode()
         case 0x07: return Op_RotateLeftWithCarryA();
         case 0x17: return Op_RotateLeftThroughCarryA();
 
+        case 0x37: return Op_SetCarryFlag();
+
+        //Restart
+        case 0xC7: return Op_Restart(0x00);
+        case 0xCF: return Op_Restart(0x08);
+        case 0xD7: return Op_Restart(0x10);
+        case 0xDF: return Op_Restart(0x18);
+        case 0xE7: return Op_Restart(0x20);
+        case 0xEF: return Op_Restart(0x28);
+        case 0xF7: return Op_Restart(0x30);
+        case 0xF8: return Op_Restart(0x38);
+
         //CB
         case 0xCB:
         {
@@ -819,63 +947,146 @@ static cycles HandleOpCode()
 
             switch (extOpCode)
             {
-                //BIT
-                case 0x47: return Op_TestBit(&Register.A, 0);
-                case 0x4F: return Op_TestBit(&Register.A, 1);
-                case 0x57: return Op_TestBit(&Register.A, 2);
-                case 0x5F: return Op_TestBit(&Register.A, 3);
-                case 0x67: return Op_TestBit(&Register.A, 4);
-                case 0x6F: return Op_TestBit(&Register.A, 5);
-                case 0x77: return Op_TestBit(&Register.A, 6);
-                case 0x7F: return Op_TestBit(&Register.A, 7);
-                case 0x40: return Op_TestBit(&Register.B, 0);
-                case 0x48: return Op_TestBit(&Register.B, 1);
-                case 0x50: return Op_TestBit(&Register.B, 2);
-                case 0x58: return Op_TestBit(&Register.B, 3);
-                case 0x60: return Op_TestBit(&Register.B, 4);
-                case 0x68: return Op_TestBit(&Register.B, 5);
-                case 0x70: return Op_TestBit(&Register.B, 6);
-                case 0x78: return Op_TestBit(&Register.B, 7);
-                case 0x41: return Op_TestBit(&Register.C, 0);
-                case 0x49: return Op_TestBit(&Register.C, 1);
-                case 0x51: return Op_TestBit(&Register.C, 2);
-                case 0x59: return Op_TestBit(&Register.C, 3);
-                case 0x61: return Op_TestBit(&Register.C, 4);
-                case 0x69: return Op_TestBit(&Register.C, 5);
-                case 0x71: return Op_TestBit(&Register.C, 6);
-                case 0x79: return Op_TestBit(&Register.C, 7);
-                case 0x42: return Op_TestBit(&Register.D, 0);
-                case 0x4A: return Op_TestBit(&Register.D, 1);
-                case 0x52: return Op_TestBit(&Register.D, 2);
-                case 0x5A: return Op_TestBit(&Register.D, 3);
-                case 0x62: return Op_TestBit(&Register.D, 4);
-                case 0x6A: return Op_TestBit(&Register.D, 5);
-                case 0x72: return Op_TestBit(&Register.D, 6);
-                case 0x7A: return Op_TestBit(&Register.D, 7);
-                case 0x43: return Op_TestBit(&Register.E, 0);
-                case 0x4B: return Op_TestBit(&Register.E, 1);
-                case 0x53: return Op_TestBit(&Register.E, 2);
-                case 0x5B: return Op_TestBit(&Register.E, 3);
-                case 0x63: return Op_TestBit(&Register.E, 4);
-                case 0x6B: return Op_TestBit(&Register.E, 5);
-                case 0x73: return Op_TestBit(&Register.E, 6);
-                case 0x7B: return Op_TestBit(&Register.E, 7);
-                case 0x44: return Op_TestBit(&Register.H, 0);
-                case 0x4C: return Op_TestBit(&Register.H, 1);
-                case 0x54: return Op_TestBit(&Register.H, 2);
-                case 0x5C: return Op_TestBit(&Register.H, 3);
-                case 0x64: return Op_TestBit(&Register.H, 4);
-                case 0x6C: return Op_TestBit(&Register.H, 5);
-                case 0x74: return Op_TestBit(&Register.H, 6);
-                case 0x7C: return Op_TestBit(&Register.H, 7);
-                case 0x45: return Op_TestBit(&Register.L, 0);
-                case 0x4D: return Op_TestBit(&Register.L, 1);
-                case 0x55: return Op_TestBit(&Register.L, 2);
-                case 0x5D: return Op_TestBit(&Register.L, 3);
-                case 0x65: return Op_TestBit(&Register.L, 4);
-                case 0x6D: return Op_TestBit(&Register.L, 5);
-                case 0x75: return Op_TestBit(&Register.L, 6);
-                case 0x7D: return Op_TestBit(&Register.L, 7);
+                //Swap
+                case 0x37: return Op_Swap(&Register.A);
+                case 0x30: return Op_Swap(&Register.B);
+                case 0x31: return Op_Swap(&Register.C);
+                case 0x32: return Op_Swap(&Register.D);
+                case 0x33: return Op_Swap(&Register.E);
+                case 0x34: return Op_Swap(&Register.H);
+                case 0x35: return Op_Swap(&Register.L);
+
+                //Set bit
+                case 0xC7: return Op_SetRegisterBit(&Register.A, 0);
+                case 0xCF: return Op_SetRegisterBit(&Register.A, 1);
+                case 0xD7: return Op_SetRegisterBit(&Register.A, 2);
+                case 0xDF: return Op_SetRegisterBit(&Register.A, 3);
+                case 0xE7: return Op_SetRegisterBit(&Register.A, 4);
+                case 0xEF: return Op_SetRegisterBit(&Register.A, 5);
+                case 0xF7: return Op_SetRegisterBit(&Register.A, 6);
+                case 0xFF: return Op_SetRegisterBit(&Register.A, 7);
+                case 0xC0: return Op_SetRegisterBit(&Register.B, 0);
+                case 0xC8: return Op_SetRegisterBit(&Register.B, 1);
+                case 0xD0: return Op_SetRegisterBit(&Register.B, 2);
+                case 0xD8: return Op_SetRegisterBit(&Register.B, 3);
+                case 0xE0: return Op_SetRegisterBit(&Register.B, 4);
+                case 0xE8: return Op_SetRegisterBit(&Register.B, 5);
+                case 0xF0: return Op_SetRegisterBit(&Register.B, 6);
+                case 0xF8: return Op_SetRegisterBit(&Register.B, 7);
+                case 0xC1: return Op_SetRegisterBit(&Register.C, 0);
+                case 0xC9: return Op_SetRegisterBit(&Register.C, 1);
+                case 0xD1: return Op_SetRegisterBit(&Register.C, 2);
+                case 0xD9: return Op_SetRegisterBit(&Register.C, 3);
+                case 0xE1: return Op_SetRegisterBit(&Register.C, 4);
+                case 0xE9: return Op_SetRegisterBit(&Register.C, 5);
+                case 0xF1: return Op_SetRegisterBit(&Register.C, 6);
+                case 0xF9: return Op_SetRegisterBit(&Register.C, 7);
+                case 0xC2: return Op_SetRegisterBit(&Register.D, 0);
+                case 0xCA: return Op_SetRegisterBit(&Register.D, 1);
+                case 0xD2: return Op_SetRegisterBit(&Register.D, 2);
+                case 0xDA: return Op_SetRegisterBit(&Register.D, 3);
+                case 0xE2: return Op_SetRegisterBit(&Register.D, 4);
+                case 0xEA: return Op_SetRegisterBit(&Register.D, 5);
+                case 0xF2: return Op_SetRegisterBit(&Register.D, 6);
+                case 0xFA: return Op_SetRegisterBit(&Register.D, 7);
+                case 0xC3: return Op_SetRegisterBit(&Register.E, 0);
+                case 0xCB: return Op_SetRegisterBit(&Register.E, 1);
+                case 0xD3: return Op_SetRegisterBit(&Register.E, 2);
+                case 0xDB: return Op_SetRegisterBit(&Register.E, 3);
+                case 0xE3: return Op_SetRegisterBit(&Register.E, 4);
+                case 0xEB: return Op_SetRegisterBit(&Register.E, 5);
+                case 0xF3: return Op_SetRegisterBit(&Register.E, 6);
+                case 0xFB: return Op_SetRegisterBit(&Register.E, 7);
+                case 0xC4: return Op_SetRegisterBit(&Register.H, 0);
+                case 0xCC: return Op_SetRegisterBit(&Register.H, 1);
+                case 0xD4: return Op_SetRegisterBit(&Register.H, 2);
+                case 0xDC: return Op_SetRegisterBit(&Register.H, 3);
+                case 0xE4: return Op_SetRegisterBit(&Register.H, 4);
+                case 0xEC: return Op_SetRegisterBit(&Register.H, 5);
+                case 0xF4: return Op_SetRegisterBit(&Register.H, 6);
+                case 0xFC: return Op_SetRegisterBit(&Register.H, 7);
+                case 0xC5: return Op_SetRegisterBit(&Register.L, 0);
+                case 0xCD: return Op_SetRegisterBit(&Register.L, 1);
+                case 0xD5: return Op_SetRegisterBit(&Register.L, 2);
+                case 0xDD: return Op_SetRegisterBit(&Register.L, 3);
+                case 0xE5: return Op_SetRegisterBit(&Register.L, 4);
+                case 0xED: return Op_SetRegisterBit(&Register.L, 5);
+                case 0xF5: return Op_SetRegisterBit(&Register.L, 6);
+                case 0xFD: return Op_SetRegisterBit(&Register.L, 7);
+                case 0xC6: return Op_SetAddrBit(Register.HL, 0);
+                case 0xCE: return Op_SetAddrBit(Register.HL, 1);
+                case 0xD6: return Op_SetAddrBit(Register.HL, 2);
+                case 0xDE: return Op_SetAddrBit(Register.HL, 3);
+                case 0xE6: return Op_SetAddrBit(Register.HL, 4);
+                case 0xEE: return Op_SetAddrBit(Register.HL, 5);
+                case 0xF6: return Op_SetAddrBit(Register.HL, 6);
+                case 0xFE: return Op_SetAddrBit(Register.HL, 7);
+
+                //Test bit
+                case 0x47: return Op_TestRegisterBit(&Register.A, 0);
+                case 0x4F: return Op_TestRegisterBit(&Register.A, 1);
+                case 0x57: return Op_TestRegisterBit(&Register.A, 2);
+                case 0x5F: return Op_TestRegisterBit(&Register.A, 3);
+                case 0x67: return Op_TestRegisterBit(&Register.A, 4);
+                case 0x6F: return Op_TestRegisterBit(&Register.A, 5);
+                case 0x77: return Op_TestRegisterBit(&Register.A, 6);
+                case 0x7F: return Op_TestRegisterBit(&Register.A, 7);
+                case 0x40: return Op_TestRegisterBit(&Register.B, 0);
+                case 0x48: return Op_TestRegisterBit(&Register.B, 1);
+                case 0x50: return Op_TestRegisterBit(&Register.B, 2);
+                case 0x58: return Op_TestRegisterBit(&Register.B, 3);
+                case 0x60: return Op_TestRegisterBit(&Register.B, 4);
+                case 0x68: return Op_TestRegisterBit(&Register.B, 5);
+                case 0x70: return Op_TestRegisterBit(&Register.B, 6);
+                case 0x78: return Op_TestRegisterBit(&Register.B, 7);
+                case 0x41: return Op_TestRegisterBit(&Register.C, 0);
+                case 0x49: return Op_TestRegisterBit(&Register.C, 1);
+                case 0x51: return Op_TestRegisterBit(&Register.C, 2);
+                case 0x59: return Op_TestRegisterBit(&Register.C, 3);
+                case 0x61: return Op_TestRegisterBit(&Register.C, 4);
+                case 0x69: return Op_TestRegisterBit(&Register.C, 5);
+                case 0x71: return Op_TestRegisterBit(&Register.C, 6);
+                case 0x79: return Op_TestRegisterBit(&Register.C, 7);
+                case 0x42: return Op_TestRegisterBit(&Register.D, 0);
+                case 0x4A: return Op_TestRegisterBit(&Register.D, 1);
+                case 0x52: return Op_TestRegisterBit(&Register.D, 2);
+                case 0x5A: return Op_TestRegisterBit(&Register.D, 3);
+                case 0x62: return Op_TestRegisterBit(&Register.D, 4);
+                case 0x6A: return Op_TestRegisterBit(&Register.D, 5);
+                case 0x72: return Op_TestRegisterBit(&Register.D, 6);
+                case 0x7A: return Op_TestRegisterBit(&Register.D, 7);
+                case 0x43: return Op_TestRegisterBit(&Register.E, 0);
+                case 0x4B: return Op_TestRegisterBit(&Register.E, 1);
+                case 0x53: return Op_TestRegisterBit(&Register.E, 2);
+                case 0x5B: return Op_TestRegisterBit(&Register.E, 3);
+                case 0x63: return Op_TestRegisterBit(&Register.E, 4);
+                case 0x6B: return Op_TestRegisterBit(&Register.E, 5);
+                case 0x73: return Op_TestRegisterBit(&Register.E, 6);
+                case 0x7B: return Op_TestRegisterBit(&Register.E, 7);
+                case 0x44: return Op_TestRegisterBit(&Register.H, 0);
+                case 0x4C: return Op_TestRegisterBit(&Register.H, 1);
+                case 0x54: return Op_TestRegisterBit(&Register.H, 2);
+                case 0x5C: return Op_TestRegisterBit(&Register.H, 3);
+                case 0x64: return Op_TestRegisterBit(&Register.H, 4);
+                case 0x6C: return Op_TestRegisterBit(&Register.H, 5);
+                case 0x74: return Op_TestRegisterBit(&Register.H, 6);
+                case 0x7C: return Op_TestRegisterBit(&Register.H, 7);
+                case 0x45: return Op_TestRegisterBit(&Register.L, 0);
+                case 0x4D: return Op_TestRegisterBit(&Register.L, 1);
+                case 0x55: return Op_TestRegisterBit(&Register.L, 2);
+                case 0x5D: return Op_TestRegisterBit(&Register.L, 3);
+                case 0x65: return Op_TestRegisterBit(&Register.L, 4);
+                case 0x6D: return Op_TestRegisterBit(&Register.L, 5);
+                case 0x75: return Op_TestRegisterBit(&Register.L, 6);
+                case 0x7D: return Op_TestRegisterBit(&Register.L, 7);
+                case 0x46: return Op_TestAddrBit(Register.HL, 0);
+                case 0x4E: return Op_TestAddrBit(Register.HL, 1);
+                case 0x56: return Op_TestAddrBit(Register.HL, 2);
+                case 0x5E: return Op_TestAddrBit(Register.HL, 3);
+                case 0x66: return Op_TestAddrBit(Register.HL, 4);
+                case 0x6E: return Op_TestAddrBit(Register.HL, 5);
+                case 0x76: return Op_TestAddrBit(Register.HL, 6);
+                case 0x7E: return Op_TestAddrBit(Register.HL, 7);
 
                 //Rotate Left
                 case 0x07: return Op_RotateLeftWithCarry(&Register.A);

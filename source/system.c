@@ -37,6 +37,9 @@ bool SystemInit(const char* pRomFile)
 {
     uint16_t startAddr = 0;
 
+    //Reading from the cartridge when there isn't one in results in 0xFF.
+    memset(ROM, 0xFF, ROM_SIZE);
+
     //If there's no rom file then run the boot rom.
     if (pRomFile == NULL)
     {
@@ -59,6 +62,11 @@ bool SystemInit(const char* pRomFile)
         }
 
         Mem[0x014D] = checksum;
+
+        //Hack to force the boot rom to stay on screen until games are actually supported.
+        //This is where the cartridge code is executed so just force it to loop.
+        Mem[0x100] = 0xC3;  //Jump to address
+        *((uint16_t*)&Mem[0x101]) = 0x100;
 
         //Load the boot rom.
         if (!readFile("dmg_boot.bin", ROM, ROM_SIZE))
