@@ -3,7 +3,9 @@
 
 #include "utils.h"
 
-bool readFile(const char* pFileName, byte* pBuffer, int bufferSize)
+#include "windows/debug.h"
+
+bool FileRead(const char* pFileName, byte* pBuffer, int bufferSize)
 {
     FILE* pFile = fopen(pFileName, "rb");
 
@@ -17,23 +19,20 @@ bool readFile(const char* pFileName, byte* pBuffer, int bufferSize)
         int fileSize = ftell(pFile);
         rewind(pFile);
 
-        if (fileSize <= bufferSize)
-        {
-            int sizeRead = (int)fread(pBuffer, 1, fileSize, pFile);
-            bSuccess = (sizeRead == fileSize);
-        }
-        else
-        {
-            fprintf(stderr, "Buffer size too small for file\n");
-        }
+        assert(fileSize <= bufferSize);
+
+        int sizeToRead = MIN(fileSize, bufferSize);
+        int sizeRead = (int)fread(pBuffer, 1, sizeToRead, pFile);
+        bSuccess = sizeToRead == sizeRead;
 
         fclose(pFile);
     }
     else
     {
-        perror("Failed to open file");
+        DebugPrint("Failed to open file");
+        assert(0);
     }
 
-    assert(bSuccess);   //Failed to load file!
+    assert(bSuccess);
     return bSuccess;
 }

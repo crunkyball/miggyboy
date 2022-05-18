@@ -3,7 +3,7 @@
 
 #include "types.h"
 
-bool CPUInit(uint16_t startAddr);
+bool CPUInit(uint16_t startAddr, byte interruptOps[], int numInterrupts);
 cycles CPUTick();
 
 #endif

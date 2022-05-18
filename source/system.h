@@ -42,6 +42,27 @@ extern byte* Register_WX;
 #define REGISTER_IE_ADDR 0xFFFF
 extern byte* Register_IE;
 
+//Interrupts
+#define NUM_INTERRUPTS 5
+
+enum Interrupt
+{
+    Interrupt_VBlank = 1 << 0,
+    Interrupt_LCD = 1 << 1,
+    Interrupt_Timer = 1 << 2,
+    //Interrupt_Serial = 1 << 3,
+    Interrupt_Joypad = 1 << 3
+};
+
+enum InterruptOp
+{
+    InterruptOp_VBlank = 0x40,
+    InterruptOp_LCD = 0x48,
+    InterruptOp_Timer = 0x50,
+    //InterruptOp_Serial = 0x58,
+    InterruptOp_Joypad = 0x60
+};
+
 //Graphics Stuff
 #define BACKGROUND_RES_X 256
 #define BACKGROUND_RES_Y 256

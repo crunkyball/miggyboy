@@ -6,6 +6,6 @@
 #define MAX(a,b) ((a) > (b) ? (a) : (b))
 #define MIN(a,b) ((a) < (b) ? (a) : (b))
 
-bool readFile(const char* pFileName, byte* pBuffer, int bufferSize);
+bool FileRead(const char* pFileName, byte* pBuffer, int bufferSize);
 
 #endif

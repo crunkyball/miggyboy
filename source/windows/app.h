@@ -1,6 +1,8 @@
 #ifndef APP_H
 #define APP_H
 
+#include <SDL.h>
+
 #include "types.h"
 
 bool AppInit();
@@ -15,4 +17,3 @@ void AppPostRender();
 uint32_t AppGetTimeMS();
 
 #endif
-

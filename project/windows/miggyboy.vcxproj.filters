@@ -7,6 +7,7 @@
     <ClCompile Include="..\..\source\system.c" />
     <ClCompile Include="..\..\source\utils.c" />
     <ClCompile Include="..\..\source\windows\app.c" />
+    <ClCompile Include="..\..\source\windows\debug.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\source\cpu.h" />
@@ -15,5 +16,6 @@
     <ClInclude Include="..\..\source\types.h" />
     <ClInclude Include="..\..\source\utils.h" />
     <ClInclude Include="..\..\source\windows\app.h" />
+    <ClInclude Include="..\..\source\windows\debug.h" />
   </ItemGroup>
 </Project>

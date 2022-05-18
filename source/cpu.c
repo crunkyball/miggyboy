@@ -4,6 +4,8 @@
 #include "types.h"
 #include "system.h"
 
+#include "windows/debug.h"
+
 struct
 {
     union
@@ -54,7 +56,9 @@ struct
     uint16_t PC; //Program counter
 } static Register;
 
-static bool IME;   //Interrupt master flag.
+static bool IME; //Interrupt master flag.
+static byte InterruptOp[8];
+static int NumInterrupts = 0;
 
 //Operator helpers
 enum Flag
@@ -396,16 +400,28 @@ static cycles Op_Complement()
     return 4;
 }
 
-static cycles Op_Increment8(byte* pR)
+static void DoIncrement8(byte* pR)
 {
     //In this case we can just check if the bottom four bits are set because increasing by one will carry.
     bool halfCarry = ((Register.C & 0xF) == 0xF);
-
-    //1 byte, 4 cycles, Flags Z0H-
     (*pR)++;
     SetFlags(*pR == 0 ? FlagSet_On : FlagSet_Off, FlagSet_Off, halfCarry ? FlagSet_On : FlagSet_Off, FlagSet_Leave);
+}
+
+static cycles Op_Increment8(byte* pR)
+{
+    //1 byte, 4 cycles, Flags Z0H-
+    DoIncrement8(pR);
     Register.PC += 1;
     return 4;
+}
+
+static cycles Op_IncrementAddr(uint16_t addr)
+{
+    //1 byte, 12 cycles, Flags Z0H-
+    DoIncrement8(&Mem[addr]);
+    Register.PC += 1;
+    return 12;
 }
 
 static cycles Op_Increment16(uint16_t* pR)
@@ -416,16 +432,28 @@ static cycles Op_Increment16(uint16_t* pR)
     return 8;
 }
 
-static cycles Op_Decrement8(byte* pR)
+static void DoDecrement8(byte* pR)
 {
     //In this case we can just check if the bottom four bits are unset because decreasing by one will carry.
     bool halfCarry = ((Register.C & 0xF) == 0x0);
-
-    //1 byte, 4 cycles, Flags Z1H-
     (*pR)--;
     SetFlags(*pR == 0 ? FlagSet_On : FlagSet_Off, FlagSet_On, halfCarry ? FlagSet_On : FlagSet_Off, FlagSet_Leave);
+}
+
+static cycles Op_Decrement8(byte* pR)
+{
+    //1 byte, 4 cycles, Flags Z1H-
+    DoDecrement8(pR);
     Register.PC += 1;
     return 4;
+}
+
+static cycles Op_DecrementAddr(uint16_t addr)
+{
+    //1 byte, 12 cycles, Flags Z1H-
+    DoDecrement8(&Mem[addr]);
+    Register.PC += 1;
+    return 12;
 }
 
 static cycles Op_Decrement16(uint16_t* pR)
@@ -580,6 +608,19 @@ static cycles Op_Return()
     return 16;
 }
 
+static cycles Op_ReturnIf(enum Flag flag, bool ifTrue)
+{
+    //2 bytes, 12/8 cycles, No flags
+    if (ifTrue == IsFlagSet(flag))
+    {
+        Register.PC = StackPop();
+        return 12;
+    }
+
+    Register.PC += 2;
+    return 8;
+}
+
 static cycles Op_EnableInterruptsAndReturn()
 {
     //1 byte, 16 cycles, No flags
@@ -688,9 +729,16 @@ static cycles Op_Restart(uint16_t addr)
     return 16;
 }
 
+static bool debugOpCodes = false;
+
 static cycles HandleOpCode()
 {
     byte opCode = Mem[Register.PC];
+
+    if (debugOpCodes)
+    {
+        DebugPrint("%d: 0x%02X\n", Register.PC, Mem[Register.PC]);
+    }
 
     switch (opCode)
     {
@@ -858,6 +906,8 @@ static cycles HandleOpCode()
         case 0x24: return Op_Increment8(&Register.H);
         case 0x2C: return Op_Increment8(&Register.L);
 
+        case 0x34: return Op_IncrementAddr(Register.HL);
+
         case 0x03: return Op_Increment16(&Register.BC);
         case 0x13: return Op_Increment16(&Register.DE);
         case 0x23: return Op_Increment16(&Register.HL);
@@ -871,6 +921,8 @@ static cycles HandleOpCode()
         case 0x1D: return Op_Decrement8(&Register.E);
         case 0x25: return Op_Decrement8(&Register.H);
         case 0x2D: return Op_Decrement8(&Register.L);
+
+        case 0x35: return Op_DecrementAddr(Register.HL);
 
         case 0x0B: return Op_Decrement16(&Register.BC);
         case 0x1B: return Op_Decrement16(&Register.DE);
@@ -922,6 +974,11 @@ static cycles HandleOpCode()
 
         //Returns
         case 0xC9: return Op_Return();
+        case 0xC0: return Op_ReturnIf(Flag_Zero, false);
+        case 0xC8: return Op_ReturnIf(Flag_Zero, true);
+        case 0xD0: return Op_ReturnIf(Flag_Carry, false);
+        case 0xD8: return Op_ReturnIf(Flag_Carry, true);
+
         case 0xD9: return Op_EnableInterruptsAndReturn();
 
         //Rotate A Left
@@ -1106,7 +1163,7 @@ static cycles HandleOpCode()
                 case 0x15: return Op_RotateLeftThroughCarry(&Register.L);
 
                 default:
-                    fprintf(stderr, "Unhandled extended opcode 0x%02X!\n", extOpCode);
+                    DebugPrint("Unhandled extended opcode 0x%02X!\n", extOpCode);
                     assert(0);
             }
         }
@@ -1115,20 +1172,47 @@ static cycles HandleOpCode()
         case 0x00: return Op_NOP();
 
         default:
-            fprintf(stderr, "Unhandled opcode 0x%02X!\n", opCode);
+            DebugPrint("Unhandled opcode 0x%02X!\n", opCode);
             assert(0);
     }
 
     return 0;
 }
 
-bool CPUInit(uint16_t startAddr)
+void CheckInterrupts()
+{
+    if (!IME || *Register_IF == 0)
+        return;
+
+    IME = false;
+
+    for (int i = 0; i < NumInterrupts; ++i)
+    {
+        if (IsRegisterBitSet(Register_IE, i) && IsRegisterBitSet(Register_IF, i))
+        {
+            UnsetRegisterBit(Register_IF, i);
+            StackPush(Register.PC);
+            Register.PC = InterruptOp[i];
+            break;
+        }
+    }
+}
+
+bool CPUInit(uint16_t startAddr, byte interruptOps[], int numInterrupts)
 {
     Register.PC = startAddr;
+
+    NumInterrupts = numInterrupts;
+    for (int i = 0; i < NumInterrupts; ++i)
+    {
+        InterruptOp[i] = interruptOps[i];
+    }
+
     return true;
 }
 
 cycles CPUTick()
 {
+    CheckInterrupts();
     return HandleOpCode();
 }

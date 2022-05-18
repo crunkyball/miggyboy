@@ -7,6 +7,8 @@
 #include "cpu.h"
 #include "ppu.h"
 
+#include "windows/debug.h"
+
 byte Mem[MEM_SIZE];
 
 //Shortcuts
@@ -33,6 +35,29 @@ static int TickCounter = 0;
 static int CycleCounter = 0;
 static float EmulationSpeed = 0;
 
+#define BOOT_ROM_SIZE 0x100
+static byte BootROM[BOOT_ROM_SIZE];
+static bool BootROMMapped = false;
+
+struct CartridgeHeader
+{
+    byte Title[16];         //0x0134-0x0143
+    byte LicenseeCode[2];   //0x0144-0x0145
+    byte SuperGBSupport;    //0x0146
+    byte CartridgeType;     //0x0147
+    byte ROMSize;           //0x0148
+    byte RAMSize;           //0x0149
+    byte Region;            //0x014A
+    byte OldLicenseeCode;   //0x014B
+    byte GameVersion;       //0x014C
+    byte HeaderChecksum;    //0x014D
+    byte GlobalChecksum[2]; //0x014E-0x014F
+};
+
+//A store where we swap out the cartride data for the boot rom and then swap it back when the boot rom is done.
+//This is temporary until I add support for some kind of memory mapping. That'll be required for bank switching, anyway.
+static byte CartridgeTemp[BOOT_ROM_SIZE];
+
 bool SystemInit(const char* pRomFile)
 {
     uint16_t startAddr = 0;
@@ -40,10 +65,39 @@ bool SystemInit(const char* pRomFile)
     //Reading from the cartridge when there isn't one in results in 0xFF.
     memset(ROM, 0xFF, ROM_SIZE);
 
-    //If there's no rom file then run the boot rom.
-    if (pRomFile == NULL)
+    if (!FileRead("dmg_boot.bin", BootROM, BOOT_ROM_SIZE))
     {
-        //Fake for now so the boot rom works.
+        DebugPrint("Failed to read boot rom file!\n");
+        assert(0);
+        return false;
+    }
+
+    if (pRomFile != NULL)
+    {
+        if (!FileRead(pRomFile, ROM, ROM_SIZE))
+        {
+            DebugPrint("Failed to read file %s!\n", pRomFile);
+            assert(0);
+            return false;
+        }
+
+        struct CartridgeHeader* pHeader = (struct CartridgeHeader*)&Mem[0x0134];
+        DebugPrint("Cartridge Loaded: \n");
+        DebugPrint("\tTitle: %.16s\n", pHeader->Title);
+        DebugPrint("\tLicenseeCode: %.2s\n", pHeader->LicenseeCode);
+        DebugPrint("\tSuperGBSupport: %u\n", pHeader->SuperGBSupport);
+        DebugPrint("\tCartridgeType: %u\n", pHeader->CartridgeType);
+        DebugPrint("\tROMSize: %u\n", pHeader->ROMSize);
+        DebugPrint("\tRAMSize: %u\n", pHeader->RAMSize);
+        DebugPrint("\tRegion: %u\n", pHeader->Region);
+        DebugPrint("\tOldLicenseeCode: %u\n", pHeader->OldLicenseeCode);
+        DebugPrint("\tGameVersion: %u\n", pHeader->GameVersion);
+
+        assert(pHeader->CartridgeType == 0);    //We don't support any fancy shit yet!
+    }
+    else
+    {
+        //We don't have a cartride so just fake some stuff to make the emulator nice to run.
         byte nintendoLogoData[] = { 0xCE, 0xED, 0x66, 0x66, 0xCC, 0x0D, 0x00, 0x0B, 0x03, 0x73, 0x00, 0x83, 0x00, 0x0C, 0x00, 0x0D,
                                     0x00, 0x08, 0x11, 0x1F, 0x88, 0x89, 0x00, 0x0E, 0xDC, 0xCC, 0x6E, 0xE6, 0xDD, 0xDD, 0xD9, 0x99,
                                     0xBB, 0xBB, 0x67, 0x63, 0x6E, 0x0E, 0xEC, 0xCC, 0xDD, 0xDC, 0x99, 0x9F, 0xBB, 0xB9, 0x33, 0x3E };
@@ -67,24 +121,24 @@ bool SystemInit(const char* pRomFile)
         //This is where the cartridge code is executed so just force it to loop.
         Mem[0x100] = 0xC3;  //Jump to address
         *((uint16_t*)&Mem[0x101]) = 0x100;
-
-        //Load the boot rom.
-        if (!readFile("dmg_boot.bin", ROM, ROM_SIZE))
-        {
-            return false;
-        }
-    }
-    else
-    {
-        if (!readFile(pRomFile, ROM, ROM_SIZE))
-        {
-            return false;
-        }
-
-        startAddr = 0x100;
     }
 
-    if (!CPUInit(startAddr))
+    //Copy the cartride data into the temporary store until the boot rom is finished.
+    memcpy(CartridgeTemp, ROM, BOOT_ROM_SIZE);
+
+    //Load the boot rom into memory.
+    memcpy(ROM, BootROM, BOOT_ROM_SIZE);
+    BootROMMapped = true;
+
+    byte interruptOps[NUM_INTERRUPTS] = {
+        InterruptOp_VBlank,
+        InterruptOp_LCD,
+        InterruptOp_Timer,
+        0,//InterruptOp_Serial,
+        InterruptOp_Joypad
+    };
+
+    if (!CPUInit(startAddr, interruptOps, NUM_INTERRUPTS))
     {
         return false;
     }
@@ -112,13 +166,21 @@ void SystemTick(uint32_t dt)
             if (numCyclesForDt > MAX_CLOCK_CYCLES_FOR_DT)
             {
                 numCyclesForDt = MAX_CLOCK_CYCLES_FOR_DT;
-                printf("Warning: Capping clock cycles!\n");
+                DebugPrint("Warning: Capping clock cycles!\n");
             }
 
             while (TickCycles < numCyclesForDt)
             {
                 cycles cpuCycles = CPUTick();
                 PPUTick(cpuCycles); //Run the same number of cycles on the PPU.
+
+                //Hacky hacky hack hack!
+                if (BootROMMapped && Mem[0xFF50] != 0)
+                {
+                    memcpy(ROM, CartridgeTemp, BOOT_ROM_SIZE);
+                    BootROMMapped = false;
+                }
+
                 TickCycles += cpuCycles;
             }
 
@@ -136,7 +198,7 @@ void SystemTick(uint32_t dt)
 
                 if (EmulationSpeed < 1.f)
                 {
-                    printf("Warning: Emulation speed %.2f!\n", EmulationSpeed);
+                    DebugPrint("Warning: Emulation speed %.2f!\n", EmulationSpeed);
                 }
             }
         }
