@@ -56,6 +56,8 @@ struct
     uint16_t PC; //Program counter
 } static Register;
 
+static bool CPURunning;
+
 static bool IME; //Interrupt master flag.
 static byte InterruptOp[8];
 static int NumInterrupts = 0;
@@ -147,6 +149,13 @@ static cycles Op_NOP()
 {
     //1 byte, 4 cycles, No flags
     Register.PC += 1;
+    return 4;
+}
+
+static cycles Op_Halt()
+{
+    //1 byte, 4 cycles, No flags
+    CPURunning = false;
     return 4;
 }
 
@@ -464,34 +473,39 @@ static cycles Op_Decrement16(uint16_t* pR)
     return 8;
 }
 
-static void DoAdd(byte val)
+static void DoAdd(byte val, bool plusCarry)
 {
+    if (plusCarry && IsFlagSet(Flag_Carry))
+    {
+        val++;
+    }
+
     bool halfCarry = (Register.A & 0xF) + (val & 0xF) > 0xF;
     bool carry = (Register.A + val) > 0xFF;
     Register.A = FromTwosComplement(Register.A) + FromTwosComplement(val);
     SetFlags(Register.A == 0 ? FlagSet_On : FlagSet_Off, FlagSet_Off, halfCarry ? FlagSet_On : FlagSet_Off, carry ? FlagSet_On : FlagSet_Off);
 }
 
-static cycles Op_AddRegister(const byte* pR)
+static cycles Op_AddRegister(const byte* pR, bool plusCarry)
 {
     //1 byte, 4 cycles, Flags Z0HC
-    DoAdd(*pR);
+    DoAdd(*pR, plusCarry);
     Register.PC += 1;
     return 4;
 }
 
-static cycles Op_AddAddr()
+static cycles Op_AddAddr(bool plusCarry)
 {
     //1 byte, 8 cycles, Flags Z0HC
-    DoAdd(Mem[Register.HL]);
+    DoAdd(Mem[Register.HL], plusCarry);
     Register.PC += 1;
     return 8;
 }
 
-static cycles Op_AddImmediate()
+static cycles Op_AddImmediate(bool plusCarry)
 {
     //2 bytes, 8 cycles, Flags Z0HC
-    DoAdd(Mem[Register.PC + 1]);
+    DoAdd(Mem[Register.PC + 1], plusCarry);
     Register.PC += 2;
     return 8;
 }
@@ -507,8 +521,13 @@ static cycles Op_AddHLRegister16(const uint16_t* pR)
     return 8;
 }
 
-static void DoSubtract(byte val)
+static void DoSubtract(byte val, bool plusCarry)
 {
+    if (plusCarry && IsFlagSet(Flag_Carry))
+    {
+        val++;
+    }
+
     bool halfCarry = (int)(Register.A & 0xf) - (int)(val & 0xf) < 0;
     bool carry = val > Register.A;
     //Register.A = FromTwosComplement(Register.A) - FromTwosComplement(val);    Don't need to do this.
@@ -516,26 +535,26 @@ static void DoSubtract(byte val)
     SetFlags(Register.A == 0 ? FlagSet_On : FlagSet_Off, FlagSet_On, halfCarry ? FlagSet_On : FlagSet_Off, carry ? FlagSet_On : FlagSet_Off);
 }
 
-static cycles Op_SubtractRegister(const byte* pR)
+static cycles Op_SubtractRegister(const byte* pR, bool plusCarry)
 {
     //1 byte, 4 cycles, Flags Z1HC
-    DoSubtract(*pR);
+    DoSubtract(*pR, plusCarry);
     Register.PC += 1;
     return 4;
 }
 
-static cycles Op_SubtractAddr()
+static cycles Op_SubtractAddr(bool plusCarry)
 {
     //1 byte, 8 cycles, Flags Z1HC
-    DoSubtract(Mem[Register.HL]);
+    DoSubtract(Mem[Register.HL], plusCarry);
     Register.PC += 1;
     return 8;
 }
 
-static cycles Op_SubtractImmediate()
+static cycles Op_SubtractImmediate(bool plusCarry)
 {
     //2 bytes, 8 cycles, Flags Z1HC
-    DoSubtract(Mem[Register.PC + 1]);
+    DoSubtract(Mem[Register.PC + 1], plusCarry);
     Register.PC += 2;
     return 8;
 }
@@ -575,6 +594,19 @@ static cycles Op_JumpIf(enum Flag flag, bool ifTrue)
     }
     
     return 8;
+}
+
+static cycles Op_JumpAddrIf(enum Flag flag, bool ifTrue)
+{
+    //3 bytes, 16/12 cycles, No flags
+    if (ifTrue == IsFlagSet(flag))
+    {
+        Register.PC = (Register.PC = Mem[Register.PC + 1] | (Mem[Register.PC + 2] << 8));
+        return 16;
+    }
+
+    Register.PC += 3;
+    return 12;
 }
 
 static cycles Op_Call()
@@ -672,6 +704,22 @@ static cycles Op_TestAddrBit(uint16_t addr, byte bit)
     return 12;
 }
 
+static cycles Op_ResetRegisterBit(byte* pR, byte bit)
+{
+    //2 bytes, 8 cycles, No flags
+    UnsetRegisterBit(pR, bit);
+    Register.PC += 2;
+    return 8;
+}
+
+static cycles Op_ResetAddrBit(uint16_t addr, byte bit)
+{
+    //2 bytes, 16 cycles, No flags
+    UnsetRegisterBit(&Mem[addr], bit);
+    Register.PC += 2;
+    return 16;
+}
+
 static cycles Op_RotateLeftWithCarry(byte* pR)
 {
     //2 bytes, 8 cycles, Flags Z00C
@@ -711,6 +759,60 @@ static cycles Op_RotateLeftThroughCarryA()
     SetFlags(Register.A == 0 ? FlagSet_On : FlagSet_Off, FlagSet_Off, FlagSet_Off, bit7 ? FlagSet_On : FlagSet_Off);
     Register.PC += 1;
     return 4;
+}
+
+static void DoShiftLeft(byte* pR)
+{
+    bool bit7 = *pR >> 7;
+    *pR <<= 1;
+    SetFlags(*pR == 0 ? FlagSet_On : FlagSet_Off, FlagSet_Off, FlagSet_Off, bit7 ? FlagSet_On : FlagSet_Off);
+}
+
+static cycles Op_ShiftRegisterLeft(byte* pR)
+{
+    //2 byte, 8 cycles, Flags Z00C
+    DoShiftLeft(pR);
+    Register.PC += 2;
+    return 8;
+}
+
+static cycles Op_ShiftAddrLeft(uint16_t addr)
+{
+    //2 byte, 16 cycles, Flags Z00C
+    DoShiftLeft(&Mem[addr]);
+    Register.PC += 2;
+    return 16;
+}
+
+static void DoShiftRight(byte* pR, bool resetMSB)
+{
+    byte bit0 = (*pR & 1);
+    byte bit7 = 0;
+
+    if (!resetMSB)
+    {
+        bit7 = (*pR & (1 << 7));
+    }
+
+    *pR = ((*pR >> 1) | bit7);
+
+    SetFlags(*pR == 0 ? FlagSet_On : FlagSet_Off, FlagSet_Off, FlagSet_Off, bit0 != 0 ? FlagSet_On : FlagSet_Off);
+}
+
+static cycles Op_ShiftRegisterRight(byte* pR, bool resetMSB)
+{
+    //2 byte, 8 cycles, Flags Z00C
+    DoShiftRight(pR, resetMSB);
+    Register.PC += 2;
+    return 8;
+}
+
+static cycles Op_ShiftAddrRight(uint16_t addr, bool resetMSB)
+{
+    //2 byte, 16 cycles, Flags Z00C
+    DoShiftRight(&Mem[addr], resetMSB);
+    Register.PC += 2;
+    return 16;
 }
 
 static cycles Op_SetCarryFlag()
@@ -930,31 +1032,53 @@ static cycles HandleOpCode()
         case 0x3B: return Op_Decrement16(&Register.SP);
 
         //Add
-        case 0x87: return Op_AddRegister(&Register.A);
-        case 0x80: return Op_AddRegister(&Register.B);
-        case 0x81: return Op_AddRegister(&Register.C);
-        case 0x82: return Op_AddRegister(&Register.D);
-        case 0x83: return Op_AddRegister(&Register.E);
-        case 0x84: return Op_AddRegister(&Register.H);
-        case 0x85: return Op_AddRegister(&Register.L);
-        case 0x86: return Op_AddAddr();
-        case 0xC6: return Op_AddImmediate();
+        case 0x87: return Op_AddRegister(&Register.A, false);
+        case 0x80: return Op_AddRegister(&Register.B, false);
+        case 0x81: return Op_AddRegister(&Register.C, false);
+        case 0x82: return Op_AddRegister(&Register.D, false);
+        case 0x83: return Op_AddRegister(&Register.E, false);
+        case 0x84: return Op_AddRegister(&Register.H, false);
+        case 0x85: return Op_AddRegister(&Register.L, false);
+        case 0x86: return Op_AddAddr(false);
+        case 0xC6: return Op_AddImmediate(false);
         
         case 0x09: return Op_AddHLRegister16(&Register.BC);
         case 0x19: return Op_AddHLRegister16(&Register.DE);
         case 0x29: return Op_AddHLRegister16(&Register.HL);
         case 0x39: return Op_AddHLRegister16(&Register.SP);
 
+        //Add Plus Carry
+        case 0x8F: return Op_AddRegister(&Register.A, true);
+        case 0x88: return Op_AddRegister(&Register.B, true);
+        case 0x89: return Op_AddRegister(&Register.C, true);
+        case 0x8A: return Op_AddRegister(&Register.D, true);
+        case 0x8B: return Op_AddRegister(&Register.E, true);
+        case 0x8C: return Op_AddRegister(&Register.H, true);
+        case 0x8D: return Op_AddRegister(&Register.L, true);
+        case 0x8E: return Op_AddAddr(true);
+        case 0xCE: return Op_AddImmediate(true);
+
         //Subtract
-        case 0x97: return Op_SubtractRegister(&Register.A);
-        case 0x90: return Op_SubtractRegister(&Register.B);
-        case 0x91: return Op_SubtractRegister(&Register.C);
-        case 0x92: return Op_SubtractRegister(&Register.D);
-        case 0x93: return Op_SubtractRegister(&Register.E);
-        case 0x94: return Op_SubtractRegister(&Register.H);
-        case 0x95: return Op_SubtractRegister(&Register.L);
-        case 0x96: return Op_SubtractAddr();
-        case 0xD6: return Op_SubtractImmediate();
+        case 0x97: return Op_SubtractRegister(&Register.A, false);
+        case 0x90: return Op_SubtractRegister(&Register.B, false);
+        case 0x91: return Op_SubtractRegister(&Register.C, false);
+        case 0x92: return Op_SubtractRegister(&Register.D, false);
+        case 0x93: return Op_SubtractRegister(&Register.E, false);
+        case 0x94: return Op_SubtractRegister(&Register.H, false);
+        case 0x95: return Op_SubtractRegister(&Register.L, false);
+        case 0x96: return Op_SubtractAddr(false);
+        case 0xD6: return Op_SubtractImmediate(false);
+
+        //Subtract Plus Carry
+        case 0x9F: return Op_SubtractRegister(&Register.A, true);
+        case 0x98: return Op_SubtractRegister(&Register.B, true);
+        case 0x99: return Op_SubtractRegister(&Register.C, true);
+        case 0x9A: return Op_SubtractRegister(&Register.D, true);
+        case 0x9B: return Op_SubtractRegister(&Register.E, true);
+        case 0x9C: return Op_SubtractRegister(&Register.H, true);
+        case 0x9D: return Op_SubtractRegister(&Register.L, true);
+        case 0x9E: return Op_SubtractAddr(true);
+        case 0xDE: return Op_SubtractImmediate(true);
 
         //Jumps
         case 0x18: return Op_Jump();
@@ -964,6 +1088,10 @@ static cycles HandleOpCode()
         case 0x28: return Op_JumpIf(Flag_Zero, true);
         case 0x30: return Op_JumpIf(Flag_Carry, false);
         case 0x38: return Op_JumpIf(Flag_Carry, true);
+        case 0xC2: return Op_JumpAddrIf(Flag_Zero, false);
+        case 0xCA: return Op_JumpAddrIf(Flag_Zero, true);
+        case 0xD2: return Op_JumpAddrIf(Flag_Carry, false);
+        case 0xDA: return Op_JumpAddrIf(Flag_Carry, true);
 
         //Calls
         case 0xCD: return Op_Call();
@@ -1145,6 +1273,72 @@ static cycles HandleOpCode()
                 case 0x76: return Op_TestAddrBit(Register.HL, 6);
                 case 0x7E: return Op_TestAddrBit(Register.HL, 7);
 
+                //Reset Bit
+                case 0x87: return Op_ResetRegisterBit(&Register.A, 0);
+                case 0x8F: return Op_ResetRegisterBit(&Register.A, 1);
+                case 0x97: return Op_ResetRegisterBit(&Register.A, 2);
+                case 0x9F: return Op_ResetRegisterBit(&Register.A, 3);
+                case 0xA7: return Op_ResetRegisterBit(&Register.A, 4);
+                case 0xAF: return Op_ResetRegisterBit(&Register.A, 5);
+                case 0xB7: return Op_ResetRegisterBit(&Register.A, 6);
+                case 0xBF: return Op_ResetRegisterBit(&Register.A, 7);
+                case 0x80: return Op_ResetRegisterBit(&Register.B, 0);
+                case 0x88: return Op_ResetRegisterBit(&Register.B, 1);
+                case 0x90: return Op_ResetRegisterBit(&Register.B, 2);
+                case 0x98: return Op_ResetRegisterBit(&Register.B, 3);
+                case 0xA0: return Op_ResetRegisterBit(&Register.B, 4);
+                case 0xA8: return Op_ResetRegisterBit(&Register.B, 5);
+                case 0xB0: return Op_ResetRegisterBit(&Register.B, 6);
+                case 0xB8: return Op_ResetRegisterBit(&Register.B, 7);
+                case 0x81: return Op_ResetRegisterBit(&Register.C, 0);
+                case 0x89: return Op_ResetRegisterBit(&Register.C, 1);
+                case 0x91: return Op_ResetRegisterBit(&Register.C, 2);
+                case 0x99: return Op_ResetRegisterBit(&Register.C, 3);
+                case 0xA1: return Op_ResetRegisterBit(&Register.C, 4);
+                case 0xA9: return Op_ResetRegisterBit(&Register.C, 5);
+                case 0xB1: return Op_ResetRegisterBit(&Register.C, 6);
+                case 0xB9: return Op_ResetRegisterBit(&Register.C, 7);
+                case 0x82: return Op_ResetRegisterBit(&Register.D, 0);
+                case 0x8A: return Op_ResetRegisterBit(&Register.D, 1);
+                case 0x92: return Op_ResetRegisterBit(&Register.D, 2);
+                case 0x9A: return Op_ResetRegisterBit(&Register.D, 3);
+                case 0xA2: return Op_ResetRegisterBit(&Register.D, 4);
+                case 0xAA: return Op_ResetRegisterBit(&Register.D, 5);
+                case 0xB2: return Op_ResetRegisterBit(&Register.D, 6);
+                case 0xBA: return Op_ResetRegisterBit(&Register.D, 7);
+                case 0x83: return Op_ResetRegisterBit(&Register.E, 0);
+                case 0x8B: return Op_ResetRegisterBit(&Register.E, 1);
+                case 0x93: return Op_ResetRegisterBit(&Register.E, 2);
+                case 0x9B: return Op_ResetRegisterBit(&Register.E, 3);
+                case 0xA3: return Op_ResetRegisterBit(&Register.E, 4);
+                case 0xAB: return Op_ResetRegisterBit(&Register.E, 5);
+                case 0xB3: return Op_ResetRegisterBit(&Register.E, 6);
+                case 0xBB: return Op_ResetRegisterBit(&Register.E, 7);
+                case 0x84: return Op_ResetRegisterBit(&Register.H, 0);
+                case 0x8C: return Op_ResetRegisterBit(&Register.H, 1);
+                case 0x94: return Op_ResetRegisterBit(&Register.H, 2);
+                case 0x9C: return Op_ResetRegisterBit(&Register.H, 3);
+                case 0xA4: return Op_ResetRegisterBit(&Register.H, 4);
+                case 0xAC: return Op_ResetRegisterBit(&Register.H, 5);
+                case 0xB4: return Op_ResetRegisterBit(&Register.H, 6);
+                case 0xBC: return Op_ResetRegisterBit(&Register.H, 7);
+                case 0x85: return Op_ResetRegisterBit(&Register.L, 0);
+                case 0x8D: return Op_ResetRegisterBit(&Register.L, 1);
+                case 0x95: return Op_ResetRegisterBit(&Register.L, 2);
+                case 0x9D: return Op_ResetRegisterBit(&Register.L, 3);
+                case 0xA5: return Op_ResetRegisterBit(&Register.L, 4);
+                case 0xAD: return Op_ResetRegisterBit(&Register.L, 5);
+                case 0xB5: return Op_ResetRegisterBit(&Register.L, 6);
+                case 0xBD: return Op_ResetRegisterBit(&Register.L, 7);
+                case 0x86: return Op_ResetAddrBit(Register.HL, 0);
+                case 0x8E: return Op_ResetAddrBit(Register.HL, 1);
+                case 0x96: return Op_ResetAddrBit(Register.HL, 2);
+                case 0x9E: return Op_ResetAddrBit(Register.HL, 3);
+                case 0xA6: return Op_ResetAddrBit(Register.HL, 4);
+                case 0xAE: return Op_ResetAddrBit(Register.HL, 5);
+                case 0xB6: return Op_ResetAddrBit(Register.HL, 6);
+                case 0xBE: return Op_ResetAddrBit(Register.HL, 7);
+
                 //Rotate Left
                 case 0x07: return Op_RotateLeftWithCarry(&Register.A);
                 case 0x00: return Op_RotateLeftWithCarry(&Register.B);
@@ -1162,6 +1356,35 @@ static cycles HandleOpCode()
                 case 0x14: return Op_RotateLeftThroughCarry(&Register.H);
                 case 0x15: return Op_RotateLeftThroughCarry(&Register.L);
 
+                //Shift Left
+                case 0x27: return Op_ShiftRegisterLeft(&Register.A);
+                case 0x20: return Op_ShiftRegisterLeft(&Register.B);
+                case 0x21: return Op_ShiftRegisterLeft(&Register.C);
+                case 0x22: return Op_ShiftRegisterLeft(&Register.D);
+                case 0x23: return Op_ShiftRegisterLeft(&Register.E);
+                case 0x24: return Op_ShiftRegisterLeft(&Register.H);
+                case 0x25: return Op_ShiftRegisterLeft(&Register.L);
+                case 0x26: return Op_ShiftAddrLeft(Register.HL);
+
+                //Shift Right
+                case 0x2F: return Op_ShiftRegisterRight(&Register.A, false);
+                case 0x28: return Op_ShiftRegisterRight(&Register.B, false);
+                case 0x29: return Op_ShiftRegisterRight(&Register.C, false);
+                case 0x2A: return Op_ShiftRegisterRight(&Register.D, false);
+                case 0x2B: return Op_ShiftRegisterRight(&Register.E, false);
+                case 0x2C: return Op_ShiftRegisterRight(&Register.H, false);
+                case 0x2D: return Op_ShiftRegisterRight(&Register.L, false);
+                case 0x2E: return Op_ShiftAddrRight(Register.HL, false);
+
+                case 0x3F: return Op_ShiftRegisterRight(&Register.A, true);
+                case 0x38: return Op_ShiftRegisterRight(&Register.B, true);
+                case 0x39: return Op_ShiftRegisterRight(&Register.C, true);
+                case 0x3A: return Op_ShiftRegisterRight(&Register.D, true);
+                case 0x3B: return Op_ShiftRegisterRight(&Register.E, true);
+                case 0x3C: return Op_ShiftRegisterRight(&Register.H, true);
+                case 0x3D: return Op_ShiftRegisterRight(&Register.L, true);
+                case 0x3E: return Op_ShiftAddrRight(Register.HL, false);
+
                 default:
                     DebugPrint("Unhandled extended opcode 0x%02X!\n", extOpCode);
                     assert(0);
@@ -1170,6 +1393,7 @@ static cycles HandleOpCode()
         break;
 
         case 0x00: return Op_NOP();
+        case 0x76: return Op_Halt();
 
         default:
             DebugPrint("Unhandled opcode 0x%02X!\n", opCode);
@@ -1190,6 +1414,7 @@ void CheckInterrupts()
     {
         if (IsRegisterBitSet(Register_IE, i) && IsRegisterBitSet(Register_IF, i))
         {
+            CPURunning = true;
             UnsetRegisterBit(Register_IF, i);
             StackPush(Register.PC);
             Register.PC = InterruptOp[i];
@@ -1201,6 +1426,8 @@ void CheckInterrupts()
 bool CPUInit(uint16_t startAddr, byte interruptOps[], int numInterrupts)
 {
     Register.PC = startAddr;
+
+    CPURunning = true;
 
     NumInterrupts = numInterrupts;
     for (int i = 0; i < NumInterrupts; ++i)
@@ -1214,5 +1441,11 @@ bool CPUInit(uint16_t startAddr, byte interruptOps[], int numInterrupts)
 cycles CPUTick()
 {
     CheckInterrupts();
-    return HandleOpCode();
+
+    if (CPURunning)
+    {
+        return HandleOpCode();
+    }
+
+    return 0;
 }
