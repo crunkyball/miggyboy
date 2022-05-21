@@ -617,6 +617,20 @@ static cycles Op_Call()
     return 24;
 }
 
+static cycles Op_CallIf(enum Flag flag, bool ifTrue)
+{
+    //3 bytes, 24/12 cycles, No flags
+    if (ifTrue == IsFlagSet(flag))
+    {
+        StackPush(Register.PC + 3);
+        Register.PC = Mem[Register.PC + 1] | (Mem[Register.PC + 2] << 8);
+        return 24;
+    }
+
+    Register.PC += 3;
+    return 12;
+}
+
 static cycles Op_DisableInterrupts()
 {
     //1 byte, 4 cycles, No flags
@@ -720,43 +734,128 @@ static cycles Op_ResetAddrBit(uint16_t addr, byte bit)
     return 16;
 }
 
-static cycles Op_RotateLeftWithCarry(byte* pR)
+void DoRotateLeftWithCarry(byte* pR)
 {
-    //2 bytes, 8 cycles, Flags Z00C
     bool bit7 = *pR >> 7;
     *pR = ((*pR << 1) | bit7);
     SetFlags(*pR == 0 ? FlagSet_On : FlagSet_Off, FlagSet_Off, FlagSet_Off, bit7 ? FlagSet_On : FlagSet_Off);
+}
+
+static cycles Op_RotateRegisterLeftWithCarry(byte* pR)
+{
+    //2 bytes, 8 cycles, Flags Z00C
+    DoRotateLeftWithCarry(pR);
     Register.PC += 2;
     return 8;
 }
 
-static cycles Op_RotateLeftThroughCarry(byte* pR)
+static cycles Op_RotateAddrLeftWithCarry(uint16_t addr)
 {
-    //2 bytes, 8 cycles, Flags Z00C
+    //2 bytes, 16 cycles, Flags Z00C
+    DoRotateLeftWithCarry(&Mem[addr]);
+    Register.PC += 2;
+    return 16;
+}
+
+void DoRotateLeftThroughCarry(byte* pR)
+{
     bool bit7 = *pR >> 7;
     *pR = ((*pR << 1) | IsFlagSet(Flag_Carry));
     SetFlags(*pR == 0 ? FlagSet_On : FlagSet_Off, FlagSet_Off, FlagSet_Off, bit7 ? FlagSet_On : FlagSet_Off);
+}
+
+static cycles Op_RotateRegisterLeftThroughCarry(byte* pR)
+{
+    //2 bytes, 8 cycles, Flags Z00C
+    DoRotateLeftThroughCarry(pR);
     Register.PC += 2;
     return 8;
 }
 
+static cycles Op_RotateAddrLeftThroughCarry(uint16_t addr)
+{
+    //2 bytes, 16 cycles, Flags Z00C
+    DoRotateLeftThroughCarry(&Mem[addr]);
+    Register.PC += 2;
+    return 16;
+}
+
 //Same as above but only works with register A and shorter as they're not used from extended opcodes.
-static cycles Op_RotateLeftWithCarryA()
+static cycles Op_RotateRegisterLeftWithCarryA()
 {
     //1 byte, 4 cycles, Flags Z00C
-    bool bit7 = Register.A >> 7;
-    Register.A = ((Register.A << 1) | bit7);
-    SetFlags(Register.A == 0 ? FlagSet_On : FlagSet_Off, FlagSet_Off, FlagSet_Off, bit7 ? FlagSet_On : FlagSet_Off);
+    DoRotateLeftWithCarry(&Register.A);
     Register.PC += 1;
     return 4;
 }
 
-static cycles Op_RotateLeftThroughCarryA()
+static cycles Op_RotateRegisterLeftThroughCarryA()
 {
     //1 byte, 4 cycles, Flags Z00C
-    bool bit7 = Register.A >> 7;
-    Register.A = ((Register.A << 1) | IsFlagSet(Flag_Carry));
-    SetFlags(Register.A == 0 ? FlagSet_On : FlagSet_Off, FlagSet_Off, FlagSet_Off, bit7 ? FlagSet_On : FlagSet_Off);
+    DoRotateLeftThroughCarry(&Register.A);
+    Register.PC += 1;
+    return 4;
+}
+
+void DoRotateRightWithCarry(byte* pR)
+{
+    bool bit0 = *pR & 0x1;
+    *pR = ((*pR >> 1) | (bit0 << 7));
+    SetFlags(*pR == 0 ? FlagSet_On : FlagSet_Off, FlagSet_Off, FlagSet_Off, bit0 ? FlagSet_On : FlagSet_Off);
+}
+
+static cycles Op_RotateRegisterRightWithCarry(byte* pR)
+{
+    //2 bytes, 8 cycles, Flags Z00C
+    DoRotateRightWithCarry(pR);
+    Register.PC += 2;
+    return 8;
+}
+
+static cycles Op_RotateAddrRightWithCarry(uint16_t addr)
+{
+    //2 bytes, 16 cycles, Flags Z00C
+    DoRotateRightWithCarry(&Mem[addr]);
+    Register.PC += 2;
+    return 16;
+}
+
+void DoRotateRightThroughCarry(byte* pR)
+{
+    bool bit0 = *pR & 0x1;
+    *pR = ((*pR >> 1) | (IsFlagSet(Flag_Carry) << 7));
+    SetFlags(*pR == 0 ? FlagSet_On : FlagSet_Off, FlagSet_Off, FlagSet_Off, bit0 ? FlagSet_On : FlagSet_Off);
+}
+
+static cycles Op_RotateRegisterRightThroughCarry(byte* pR)
+{
+    //2 bytes, 8 cycles, Flags Z00C
+    DoRotateRightThroughCarry(pR);
+    Register.PC += 2;
+    return 8;
+}
+
+static cycles Op_RotateAddrRightThroughCarry(uint16_t addr)
+{
+    //2 bytes, 16 cycles, Flags Z00C
+    DoRotateRightThroughCarry(&Mem[addr]);
+    Register.PC += 2;
+    return 16;
+}
+
+//Same as above but only works with register A and shorter as they're not used from extended opcodes.
+static cycles Op_RotateRegisterRightWithCarryA()
+{
+    //1 byte, 4 cycles, Flags Z00C
+    DoRotateRightWithCarry(&Register.A);
+    Register.PC += 1;
+    return 4;
+}
+
+static cycles Op_RotateRegisterRightThroughCarryA()
+{
+    //1 byte, 4 cycles, Flags Z00C
+    DoRotateRightThroughCarry(&Register.A);
     Register.PC += 1;
     return 4;
 }
@@ -1095,6 +1194,10 @@ static cycles HandleOpCode()
 
         //Calls
         case 0xCD: return Op_Call();
+        case 0xC4: return Op_CallIf(Flag_Zero, false);
+        case 0xCC: return Op_CallIf(Flag_Zero, true);
+        case 0xD4: return Op_CallIf(Flag_Carry, false);
+        case 0xDC: return Op_CallIf(Flag_Carry, true);
 
         //Interrupts
         case 0xF3: return Op_DisableInterrupts();
@@ -1110,8 +1213,12 @@ static cycles HandleOpCode()
         case 0xD9: return Op_EnableInterruptsAndReturn();
 
         //Rotate A Left
-        case 0x07: return Op_RotateLeftWithCarryA();
-        case 0x17: return Op_RotateLeftThroughCarryA();
+        case 0x07: return Op_RotateRegisterLeftWithCarryA();
+        case 0x17: return Op_RotateRegisterLeftThroughCarryA();
+
+        //Rotate A Right
+        case 0x0F: return Op_RotateRegisterRightWithCarryA();
+        case 0x1F: return Op_RotateRegisterRightThroughCarryA();
 
         case 0x37: return Op_SetCarryFlag();
 
@@ -1123,7 +1230,7 @@ static cycles HandleOpCode()
         case 0xE7: return Op_Restart(0x20);
         case 0xEF: return Op_Restart(0x28);
         case 0xF7: return Op_Restart(0x30);
-        case 0xF8: return Op_Restart(0x38);
+        case 0xFF: return Op_Restart(0x38);
 
         //CB
         case 0xCB:
@@ -1340,21 +1447,42 @@ static cycles HandleOpCode()
                 case 0xBE: return Op_ResetAddrBit(Register.HL, 7);
 
                 //Rotate Left
-                case 0x07: return Op_RotateLeftWithCarry(&Register.A);
-                case 0x00: return Op_RotateLeftWithCarry(&Register.B);
-                case 0x01: return Op_RotateLeftWithCarry(&Register.C);
-                case 0x02: return Op_RotateLeftWithCarry(&Register.D);
-                case 0x03: return Op_RotateLeftWithCarry(&Register.E);
-                case 0x04: return Op_RotateLeftWithCarry(&Register.H);
-                case 0x05: return Op_RotateLeftWithCarry(&Register.L);
+                case 0x07: return Op_RotateRegisterLeftWithCarry(&Register.A);
+                case 0x00: return Op_RotateRegisterLeftWithCarry(&Register.B);
+                case 0x01: return Op_RotateRegisterLeftWithCarry(&Register.C);
+                case 0x02: return Op_RotateRegisterLeftWithCarry(&Register.D);
+                case 0x03: return Op_RotateRegisterLeftWithCarry(&Register.E);
+                case 0x04: return Op_RotateRegisterLeftWithCarry(&Register.H);
+                case 0x05: return Op_RotateRegisterLeftWithCarry(&Register.L);
+                case 0x06: return Op_RotateAddrLeftWithCarry(Register.HL);
 
-                case 0x17: return Op_RotateLeftThroughCarry(&Register.A);
-                case 0x10: return Op_RotateLeftThroughCarry(&Register.B);
-                case 0x11: return Op_RotateLeftThroughCarry(&Register.C);
-                case 0x12: return Op_RotateLeftThroughCarry(&Register.D);
-                case 0x13: return Op_RotateLeftThroughCarry(&Register.E);
-                case 0x14: return Op_RotateLeftThroughCarry(&Register.H);
-                case 0x15: return Op_RotateLeftThroughCarry(&Register.L);
+                case 0x17: return Op_RotateRegisterLeftThroughCarry(&Register.A);
+                case 0x10: return Op_RotateRegisterLeftThroughCarry(&Register.B);
+                case 0x11: return Op_RotateRegisterLeftThroughCarry(&Register.C);
+                case 0x12: return Op_RotateRegisterLeftThroughCarry(&Register.D);
+                case 0x13: return Op_RotateRegisterLeftThroughCarry(&Register.E);
+                case 0x14: return Op_RotateRegisterLeftThroughCarry(&Register.H);
+                case 0x15: return Op_RotateRegisterLeftThroughCarry(&Register.L);
+                case 0x16: return Op_RotateAddrLeftThroughCarry(Register.HL);
+
+                //Rotate Right
+                case 0x0F: return Op_RotateRegisterRightWithCarry(&Register.A);
+                case 0x08: return Op_RotateRegisterRightWithCarry(&Register.B);
+                case 0x09: return Op_RotateRegisterRightWithCarry(&Register.C);
+                case 0x0A: return Op_RotateRegisterRightWithCarry(&Register.D);
+                case 0x0B: return Op_RotateRegisterRightWithCarry(&Register.E);
+                case 0x0C: return Op_RotateRegisterRightWithCarry(&Register.H);
+                case 0x0D: return Op_RotateRegisterRightWithCarry(&Register.L);
+                case 0x0E: return Op_RotateAddrRightWithCarry(Register.HL);
+                
+                case 0x1F: return Op_RotateRegisterRightThroughCarry(&Register.A);
+                case 0x18: return Op_RotateRegisterRightThroughCarry(&Register.B);
+                case 0x19: return Op_RotateRegisterRightThroughCarry(&Register.C);
+                case 0x1A: return Op_RotateRegisterRightThroughCarry(&Register.D);
+                case 0x1B: return Op_RotateRegisterRightThroughCarry(&Register.E);
+                case 0x1C: return Op_RotateRegisterRightThroughCarry(&Register.H);
+                case 0x1D: return Op_RotateRegisterRightThroughCarry(&Register.L);
+                case 0x1E: return Op_RotateAddrRightThroughCarry(Register.HL);
 
                 //Shift Left
                 case 0x27: return Op_ShiftRegisterLeft(&Register.A);
