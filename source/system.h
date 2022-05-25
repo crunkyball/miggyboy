@@ -18,11 +18,26 @@
 extern byte Mem[];
 
 //I/O Registers
+#define REGISTER_DIV_ADDR 0xFF04
+extern byte* Register_DIV;
+
+#define REGISTER_TIMA_ADDR 0xFF05
+extern byte* Register_TIMA;
+
+#define REGISTER_TMA_ADDR 0xFF06
+extern byte* REGISTER_TMA;
+
+#define REGISTER_TAC_ADDR 0xFF07
+extern byte* REGISTER_TAC;
+
 #define REGISTER_IF_ADDR 0xFF0F
 extern byte* Register_IF;
 
 #define REGISTER_LCDC_ADDR 0xFF40
 extern byte* Register_LCDC;
+
+#define REGISTER_STAT_ADDR 0xFF41
+extern byte* Register_STAT;
 
 #define REGISTER_SCY_ADDR 0xFF42
 extern byte* Register_SCY;
@@ -47,17 +62,17 @@ extern byte* Register_IE;
 
 enum Interrupt
 {
-    Interrupt_VBlank = 1 << 0,
-    Interrupt_LCD = 1 << 1,
-    Interrupt_Timer = 1 << 2,
-    //Interrupt_Serial = 1 << 3,
-    Interrupt_Joypad = 1 << 3
+    Interrupt_VBlank = 0,
+    Interrupt_STAT = 1,
+    Interrupt_Timer = 2,
+    //Interrupt_Serial = 3,
+    Interrupt_Joypad = 4
 };
 
 enum InterruptOp
 {
     InterruptOp_VBlank = 0x40,
-    InterruptOp_LCD = 0x48,
+    InterruptOp_STAT = 0x48,
     InterruptOp_Timer = 0x50,
     //InterruptOp_Serial = 0x58,
     InterruptOp_Joypad = 0x60
@@ -76,6 +91,8 @@ enum InterruptOp
 #define BYTES_PER_TILE 16
 
 static const int BACKGROUND_TILES_PER_LINE = BACKGROUND_RES_X / TILE_WIDTH;
+
+void FireInterrupt(enum Interrupt interrupt);
 
 bool SystemInit(const char* pRomFile);
 void SystemTick(uint32_t dt);

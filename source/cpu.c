@@ -1551,6 +1551,11 @@ void CheckInterrupts()
     }
 }
 
+void CPUSetInterrupt(int interruptIdx)
+{
+    SetRegisterBit(Register_IF, interruptIdx);
+}
+
 bool CPUInit(uint16_t startAddr, byte interruptOps[], int numInterrupts)
 {
     Register.PC = startAddr;

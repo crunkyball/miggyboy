@@ -17,8 +17,13 @@ byte* VRAM = &Mem[VRAM_ADDR];
 byte* RAM = &Mem[RAM_ADDR];
 
 //I/O Registers
+byte* Register_DIV = &Mem[REGISTER_DIV_ADDR];
+byte* Register_TIMA = &Mem[REGISTER_TIMA_ADDR];
+byte* Register_TMA = &Mem[REGISTER_TMA_ADDR];
+byte* Register_TAC = &Mem[REGISTER_TAC_ADDR];
 byte* Register_IF = &Mem[REGISTER_IF_ADDR];
 byte* Register_LCDC = &Mem[REGISTER_LCDC_ADDR];
+byte* Register_STAT = &Mem[REGISTER_STAT_ADDR];
 byte* Register_SCY = &Mem[REGISTER_SCY_ADDR];
 byte* Register_SCX = &Mem[REGISTER_SCX_ADDR];
 byte* Register_LY = &Mem[REGISTER_LY_ADDR];
@@ -34,6 +39,16 @@ static int TickCycles = 0;
 static int TickCounter = 0;
 static int CycleCounter = 0;
 static float EmulationSpeed = 0;
+
+static int TimerInterval[4] = {
+    1024,   //4096Hz
+    16,     //262144Hz
+    64,     //65536Hz
+    256     //16384Hz
+};
+
+static int TimerIntervalCount = 0;
+static byte Timer = 0;
 
 #define BOOT_ROM_SIZE 0x100
 static byte BootROM[BOOT_ROM_SIZE];
@@ -57,6 +72,35 @@ struct CartridgeHeader
 //A store where we swap out the cartride data for the boot rom and then swap it back when the boot rom is done.
 //This is temporary until I add support for some kind of memory mapping. That'll be required for bank switching, anyway.
 static byte CartridgeTemp[BOOT_ROM_SIZE];
+
+void FireInterrupt(enum Interrupt interrupt)
+{
+    CPUSetInterrupt(interrupt);
+}
+
+void TimerTick(cycles numCycles)
+{
+    bool timerEnabled = (*Register_TAC & 0b100);
+    int timerMode = (*Register_TAC & 0b11);
+
+    if (timerEnabled)
+    {
+        if ((TimerIntervalCount += numCycles) >= TimerInterval[timerMode])
+        {
+            TimerIntervalCount -= TimerInterval[timerMode];
+
+            if (Timer == 0xFF)
+            {
+                Timer = *Register_TMA;
+                FireInterrupt(Interrupt_Timer);
+            }
+            else
+            {
+                Timer++;
+            }
+        }
+    }
+}
 
 bool SystemInit(const char* pRomFile)
 {
@@ -132,7 +176,7 @@ bool SystemInit(const char* pRomFile)
 
     byte interruptOps[NUM_INTERRUPTS] = {
         InterruptOp_VBlank,
-        InterruptOp_LCD,
+        InterruptOp_STAT,
         InterruptOp_Timer,
         0,//InterruptOp_Serial,
         InterruptOp_Joypad
@@ -160,7 +204,7 @@ void SystemTick(uint32_t dt)
 
         if (numCyclesForDt > 0)
         {
-            const cycles MAX_CLOCK_CYCLES_FOR_DT = CLOCK_CYCLES_PER_MS * 100;
+            const cycles MAX_CLOCK_CYCLES_FOR_DT = CLOCK_CYCLES_PER_MS * 500;
 
             //To prevent spiral of death.
             if (numCyclesForDt > MAX_CLOCK_CYCLES_FOR_DT)
@@ -172,7 +216,18 @@ void SystemTick(uint32_t dt)
             while (TickCycles < numCyclesForDt)
             {
                 cycles cpuCycles = CPUTick();
-                PPUTick(cpuCycles); //Run the same number of cycles on the PPU.
+
+                if (cpuCycles == 0)
+                {
+                    //In the case that the CPU is HALTed we need to keep the rest of the system ticking over.
+                    cpuCycles = 1;
+                }
+
+                //Update PPU.
+                PPUTick(cpuCycles);
+
+                //Update timer.
+                TimerTick(cpuCycles);
 
                 //Hacky hacky hack hack!
                 if (BootROMMapped && Mem[0xFF50] != 0)
@@ -190,13 +245,13 @@ void SystemTick(uint32_t dt)
             //Calculate emulation speed.
             CycleCounter += numCyclesForDt;
 
-            if ((TickCounter += dt) > 1000)
+            if ((TickCounter += dt) >= 1000)
             {
                 EmulationSpeed = (float)CycleCounter / CLOCK_CYCLES;
                 TickCounter = 0;
                 CycleCounter = 0;
 
-                if (EmulationSpeed < 1.f)
+                if (EmulationSpeed < 0.99f)
                 {
                     DebugPrint("Warning: Emulation speed %.2f!\n", EmulationSpeed);
                 }
