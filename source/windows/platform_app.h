@@ -1,5 +1,5 @@
-#ifndef APP_H
-#define APP_H
+#ifndef PLATFORM_APP_H
+#define PLATFORM_APP_H
 
 #include <SDL.h>
 

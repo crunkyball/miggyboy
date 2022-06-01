@@ -6,8 +6,13 @@
     <ClCompile Include="..\..\source\ppu.c" />
     <ClCompile Include="..\..\source\system.c" />
     <ClCompile Include="..\..\source\utils.c" />
-    <ClCompile Include="..\..\source\windows\app.c" />
-    <ClCompile Include="..\..\source\windows\debug.c" />
+    <ClCompile Include="..\..\source\windows\platform_app.c">
+      <Filter>platform</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\source\windows\platform_debug.c">
+      <Filter>platform</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\source\debug.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\source\cpu.h" />
@@ -15,7 +20,18 @@
     <ClInclude Include="..\..\source\system.h" />
     <ClInclude Include="..\..\source\types.h" />
     <ClInclude Include="..\..\source\utils.h" />
-    <ClInclude Include="..\..\source\windows\app.h" />
-    <ClInclude Include="..\..\source\windows\debug.h" />
+    <ClInclude Include="..\..\source\opcode_debug.h" />
+    <ClInclude Include="..\..\source\windows\platform_app.h">
+      <Filter>platform</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\source\windows\platform_debug.h">
+      <Filter>platform</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\source\debug.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="platform">
+      <UniqueIdentifier>{8247aac0-180e-4745-854e-5798fdba075a}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
 </Project>

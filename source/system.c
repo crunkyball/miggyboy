@@ -7,7 +7,8 @@
 #include "cpu.h"
 #include "ppu.h"
 
-#include "windows/debug.h"
+#include "debug.h"
+#include "windows/platform_debug.h"
 
 byte Mem[MEM_SIZE];
 
@@ -72,6 +73,33 @@ struct CartridgeHeader
 //A store where we swap out the cartride data for the boot rom and then swap it back when the boot rom is done.
 //This is temporary until I add support for some kind of memory mapping. That'll be required for bank switching, anyway.
 static byte CartridgeTemp[BOOT_ROM_SIZE];
+
+#if DEBUG_ENABLED
+static bool SingleStepMode = false;
+static bool SingleStepPending = false;
+static CallbackFunc StepCallback = NULL;
+static CallbackFunc ROMChangedCallback = NULL;
+
+void ToggleSingleStepMode()
+{
+    SingleStepMode = !SingleStepMode;
+}
+
+void RequestSingleStep()
+{
+    SingleStepPending = true;
+}
+
+void RegisterStepCallback(CallbackFunc callback)
+{
+    StepCallback = callback;
+}
+
+void RegisterROMChangedCallback(CallbackFunc callback)
+{
+    ROMChangedCallback = callback;
+}
+#endif
 
 void FireInterrupt(enum Interrupt interrupt)
 {
@@ -145,7 +173,7 @@ bool SystemInit(const char* pRomFile)
         byte nintendoLogoData[] = { 0xCE, 0xED, 0x66, 0x66, 0xCC, 0x0D, 0x00, 0x0B, 0x03, 0x73, 0x00, 0x83, 0x00, 0x0C, 0x00, 0x0D,
                                     0x00, 0x08, 0x11, 0x1F, 0x88, 0x89, 0x00, 0x0E, 0xDC, 0xCC, 0x6E, 0xE6, 0xDD, 0xDD, 0xD9, 0x99,
                                     0xBB, 0xBB, 0x67, 0x63, 0x6E, 0x0E, 0xEC, 0xCC, 0xDD, 0xDC, 0x99, 0x9F, 0xBB, 0xB9, 0x33, 0x3E };
-        memcpy(&Mem[0x104], nintendoLogoData, sizeof(nintendoLogoData));
+        memcpy(&Mem[0x0104], nintendoLogoData, sizeof(nintendoLogoData));
 
         //Fake cartridge header.
         Mem[0x0134] = 'T';
@@ -195,8 +223,47 @@ bool SystemInit(const char* pRomFile)
     return true;
 }
 
+cycles Step()
+{
+    cycles cpuCycles = CPUTick();
+
+    if (cpuCycles == 0)
+    {
+        //In the case that the CPU is HALTed we need to keep the rest of the system ticking over.
+        cpuCycles = 1;
+    }
+
+    //Update PPU.
+    PPUTick(cpuCycles);
+
+    //Update timer.
+    TimerTick(cpuCycles);
+
+#if DEBUG_ENABLED
+    if (StepCallback != NULL)
+    {
+        StepCallback();
+    }
+#endif
+
+    return cpuCycles;
+}
+
 void SystemTick(uint32_t dt)
 {
+#if DEBUG_ENABLED
+    if (SingleStepMode)
+    {
+        if (SingleStepPending)
+        {
+            Step();
+            SingleStepPending = false;
+        }
+
+        return;
+    }
+#endif
+
     if (dt > 0)
     {
         //Run enough cycles for this dt.
@@ -215,28 +282,23 @@ void SystemTick(uint32_t dt)
 
             while (TickCycles < numCyclesForDt)
             {
-                cycles cpuCycles = CPUTick();
-
-                if (cpuCycles == 0)
-                {
-                    //In the case that the CPU is HALTed we need to keep the rest of the system ticking over.
-                    cpuCycles = 1;
-                }
-
-                //Update PPU.
-                PPUTick(cpuCycles);
-
-                //Update timer.
-                TimerTick(cpuCycles);
+                cycles stepCycles = Step();
 
                 //Hacky hacky hack hack!
                 if (BootROMMapped && Mem[0xFF50] != 0)
                 {
                     memcpy(ROM, CartridgeTemp, BOOT_ROM_SIZE);
                     BootROMMapped = false;
+
+#if DEBUG_ENABLED
+                    if (ROMChangedCallback != NULL)
+                    {
+                        ROMChangedCallback();
+                    }
+#endif
                 }
 
-                TickCycles += cpuCycles;
+                TickCycles += stepCycles;
             }
 
             assert(TickCycles >= numCyclesForDt);

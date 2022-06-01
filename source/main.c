@@ -1,5 +1,6 @@
 #include "system.h"
-#include "windows/app.h"   //Need a better way to get this.
+#include "debug.h"
+#include "windows/platform_app.h"   //Need a better way to get this.
 
 #include <stdio.h>
 
@@ -45,6 +46,10 @@ int main(int argc, char** argv)
     {
         return -1;
     }
+
+#if DEBUG_ENABLED
+    DebugInit();
+#endif
 
     Run();
 

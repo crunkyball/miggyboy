@@ -1,60 +1,13 @@
 #include <stdio.h>
 #include <assert.h>
 
+#include "cpu.h"
 #include "types.h"
 #include "system.h"
 
-#include "windows/debug.h"
+#include "windows/platform_debug.h"
 
-struct
-{
-    union
-    {
-        struct
-        {
-            byte F; //Flags
-            byte A; //Accumulator
-        };
-
-        uint16_t AF;
-    };
-
-    union
-    {
-        struct
-        {
-            byte C;
-            byte B;
-        };
-
-        uint16_t BC;
-    };
-
-    union
-    {
-        struct
-        {
-            byte E;
-            byte D;
-        };
-
-        uint16_t DE;
-    };
-
-    union
-    {
-        struct
-        {
-            byte L;
-            byte H;
-        };
-
-        uint16_t HL;
-    };
-
-    uint16_t SP; //Stack pointer
-    uint16_t PC; //Program counter
-} static Register;
+static struct CPURegisters Register;
 
 static bool CPURunning;
 
@@ -1582,3 +1535,12 @@ cycles CPUTick()
 
     return 0;
 }
+
+#if DEBUG_ENABLED
+
+const struct CPURegisters* DebugGetCPURegisters()
+{
+    return &Register;
+}
+
+#endif

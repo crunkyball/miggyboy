@@ -1,9 +1,9 @@
 #include <Windows.h>
 #include <stdio.h>
 
-#include "debug.h"
+#include "platform_debug.h"
 
-void DebugPrint(const char* pFmt, ...)
+extern void DebugPrint(const char* pFmt, ...)
 {
     char buf[1024];
     va_list args;
