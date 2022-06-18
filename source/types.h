@@ -9,4 +9,6 @@
 typedef uint8_t byte;
 typedef int cycles;
 
+typedef void(*CallbackFunc)();
+
 #endif

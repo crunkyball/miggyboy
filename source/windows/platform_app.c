@@ -27,7 +27,8 @@ static const int WINDOW_HEIGHT = SCREEN_RES_Y;
 #if DEBUG_ENABLED
 static TTF_Font* DebugFont;
 
-static int ProgramOffset = 0;
+static int SelectedDisassemblyIndex = 0;
+static int DisassemblyOffset = 0;
 
 static void DrawDebugText(int x, int y, uint32_t col, const char* pFmt, ...)
 {
@@ -59,6 +60,61 @@ static void DrawDebugText(int x, int y, uint32_t col, const char* pFmt, ...)
     SDL_FreeSurface(pTextSurface);
 }
 
+static void DecreaseDisassemblyIndex()
+{
+    if (SelectedDisassemblyIndex == 0)
+    {
+        const struct CPURegisters* cpuRegisters = DebugGetCPURegisters();
+
+        int disassemblyIdx = GetDisassembledROMIdxFromAddr(cpuRegisters->PC) + DisassemblyOffset;
+
+        if (disassemblyIdx > 0)
+        {
+            DisassemblyOffset--;
+        }
+    }
+    else
+    {
+        SelectedDisassemblyIndex--;
+    }
+}
+
+static void IncreaseDisassemblyIndex()
+{
+    if (SelectedDisassemblyIndex == (CALLSTACK_SIZE - 1))
+    {
+        const struct CPURegisters* cpuRegisters = DebugGetCPURegisters();
+
+        int disassemblyIdx = GetDisassembledROMIdxFromAddr(cpuRegisters->PC) + DisassemblyOffset;
+
+        if ((disassemblyIdx + CALLSTACK_SIZE) < DisassembledROMSize)
+        {
+            DisassemblyOffset++;
+        }
+    }
+    else
+    {
+        SelectedDisassemblyIndex++;
+    }
+}
+
+static void ToggleDisassemblyBreakpoint()
+{
+    const struct CPURegisters* cpuRegisters = DebugGetCPURegisters();
+
+    int disassemblyIdx = GetDisassembledROMIdxFromAddr(cpuRegisters->PC) + DisassemblyOffset + SelectedDisassemblyIndex;
+    int breakpointAddr = DisassembledROM[disassemblyIdx].ROMAddr;
+
+    DebugToggleBreakpoint(breakpointAddr);
+}
+
+static void OnBreakpointHit()
+{
+    //Reset the offsets so the breakpoint is in focus.
+    SelectedDisassemblyIndex = 0;
+    DisassemblyOffset = 0;
+}
+
 static void DrawDebugInfo()
 {
     static const int kTextGap = 16;
@@ -70,23 +126,45 @@ static void DrawDebugInfo()
     int textX = 170;
     DrawDebugText(textX, textY, 0x000000FF, "Program");
 
-    int disassemblyIdx = GetDisassembledROMIdxFromAddr(cpuRegisters->PC);
-    disassemblyIdx = disassemblyIdx >= 0 ? disassemblyIdx + ProgramOffset : disassemblyIdx;
+    int disassemblyIdx = GetDisassembledROMIdxFromAddr(cpuRegisters->PC) + DisassemblyOffset;
 
     for (int i = 0; i < CALLSTACK_SIZE; ++i)
     {
         const char* pOpStr = "???";
         uint16_t opAddr = 0;
 
+        textY += kTextGap;
+
         if (disassemblyIdx >= 0 && disassemblyIdx < DisassembledROMSize)
         {
             pOpStr = DisassembledROM[disassemblyIdx].OpStr;
             opAddr = DisassembledROM[disassemblyIdx].ROMAddr;
 
+            if (DebugHasBreakpoint(opAddr))
+            {
+                SDL_SetRenderDrawColor(WindowRenderer, 0xFF, 0x00, 0x00, 0xFF);
+                SDL_Rect rect = { textX - 6, textY + 2, 12, 12 };
+                SDL_RenderFillRect(WindowRenderer, &rect);
+
+                if (opAddr == cpuRegisters->PC)
+                {
+                    SDL_SetRenderDrawColor(WindowRenderer, 0xFF, 0xFF, 0x4D, 0xFF);
+                    SDL_Rect rect = { textX + 7, textY, 193, 16 };
+                    SDL_RenderFillRect(WindowRenderer, &rect);
+                }
+            }
+
             disassemblyIdx++;
         }
 
-        DrawDebugText(textX, textY += kTextGap, 0x000000FF, "%s0x%.4X: %s", opAddr == cpuRegisters->PC ? ">" : " ", opAddr, pOpStr);
+        if (i == SelectedDisassemblyIndex)
+        {
+            SDL_SetRenderDrawColor(WindowRenderer, 0x00, 0x00, 0x00, 0xFF);
+            SDL_Rect rect = { textX + 7, textY, 193, 16 };
+            SDL_RenderDrawRect(WindowRenderer, &rect);
+        }
+
+        DrawDebugText(textX, textY, 0x000000FF, "%s0x%.4X: %s", opAddr == cpuRegisters->PC ? ">" : " ", opAddr, pOpStr);
     }
 
     //Callstack
@@ -135,7 +213,7 @@ static void DrawDebugInfo()
 
 
     //Instructions
-    DrawDebugText(10, 450, 0x0000FF, "(P) Toggle Single Step Mode, ([) Step CPU, (-/=) Browse Program");
+    DrawDebugText(10, 450, 0x0000FF, "(P) Toggle Single Step, ([) Step CPU, (B) Breakpoint, (-/=) Browse Program");
 }
 
 #endif
@@ -213,6 +291,8 @@ bool AppInit()
     {
         return false;
     }
+
+    RegisterBreakpointHitCallback(&OnBreakpointHit);
 #endif
 
     Window = SDL_CreateWindow("MiggyBoy", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_OPENGL);
@@ -263,8 +343,9 @@ bool AppTick()
 #if DEBUG_ENABLED
                 case SDLK_p: ToggleSingleStepMode(); break;
                 case SDLK_LEFTBRACKET: RequestSingleStep(); break;
-                case SDLK_MINUS: ProgramOffset--; break;
-                case SDLK_EQUALS: ProgramOffset++; break;
+                case SDLK_MINUS: DecreaseDisassemblyIndex(); break;
+                case SDLK_EQUALS: IncreaseDisassemblyIndex(); break;
+                case SDLK_b: ToggleDisassemblyBreakpoint(); break;
 #endif
             }
         }

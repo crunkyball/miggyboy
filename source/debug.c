@@ -10,11 +10,17 @@
 #include "cpu.h"
 #include "opcode_debug.h"
 
+#include "windows/platform_debug.h"
+
 struct DisassembledROMInstr DisassembledROM[ROM_SIZE];
 int DisassembledROMSize = 0;
 
 int DebugCallstack[CALLSTACK_SIZE];
 int DebugCallstackHead = 0;
+
+uint16_t DebugBreakpoints[MAX_BREAKPOINTS];
+
+static CallbackFunc BreakpointHitCallback = NULL;
 
 struct KnownDataBlock
 {
@@ -55,6 +61,18 @@ void OnStep()
     {
         DebugCallstackHead = 0;
     }
+
+    //Do we need to break at this address?
+    if (DebugHasBreakpoint(cpuRegisters->PC))
+    {
+        DebugPrint("Breakpoint hit at 0x%.4X!\n", cpuRegisters->PC);
+        EnableSingleStepMode();
+
+        if (BreakpointHitCallback != NULL)
+        {
+            BreakpointHitCallback();
+        }
+    }
 }
 
 static int DisassembledROMCmpFunc(const void* pLhs, const void* pRhs)
@@ -72,6 +90,47 @@ int GetDisassembledROMIdxFromAddr(uint16_t romAddr)
     }
 
     return -1;
+}
+
+void DebugToggleBreakpoint(uint16_t disassemblyAddr)
+{
+    //If it's set, unset it.
+    for (int i = 0; i < MAX_BREAKPOINTS; ++i)
+    {
+        if (DebugBreakpoints[i] == disassemblyAddr)
+        {
+            DebugBreakpoints[i] = INVALID_BREAKPOINT;
+            return;
+        }
+    }
+
+    //Otherwise set it, if we have space.
+    for (int i = 0; i < MAX_BREAKPOINTS; ++i)
+    {
+        if (DebugBreakpoints[i] == INVALID_BREAKPOINT)
+        {
+            DebugBreakpoints[i] = disassemblyAddr;
+            return;
+        }
+    }
+}
+
+bool DebugHasBreakpoint(uint16_t disassemblyAddr)
+{
+    for (int i = 0; i < MAX_BREAKPOINTS; ++i)
+    {
+        if (DebugBreakpoints[i] == disassemblyAddr)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+void RegisterBreakpointHitCallback(CallbackFunc callback)
+{
+    BreakpointHitCallback = callback;
 }
 
 void DisassembleROM()
@@ -127,7 +186,7 @@ void DisassembleROM()
             else if (pDataLoc = strstr(pOpStr, "d16"))
             {
                 dataLocLen = 3; //strlen("d16")
-                sprintf_s(dataStr, 16, "$%.2x", *(uint16_t*)&Mem[memAddr + 1]);
+                sprintf_s(dataStr, 16, "$%.4x", *(uint16_t*)&Mem[memAddr + 1]);
             }
             //"a8" 8-bit unsigned data added to 0xFF00
             else if (pDataLoc = strstr(pOpStr, "a8"))
@@ -139,7 +198,7 @@ void DisassembleROM()
             else if (pDataLoc = strstr(pOpStr, "a16"))
             {
                 dataLocLen = 3; //strlen("a16")
-                sprintf_s(dataStr, 16, "$%.2x", *(uint16_t*)&Mem[memAddr + 1]);
+                sprintf_s(dataStr, 16, "$%.4x", *(uint16_t*)&Mem[memAddr + 1]);
             }
             //"r8" 8-bit signed data
             else if (pDataLoc = strstr(pOpStr, "r8"))
@@ -176,6 +235,8 @@ void OnROMChanged()
 
 void DebugInit()
 {
+    memset(DebugBreakpoints, INVALID_BREAKPOINT, sizeof(DebugBreakpoints));
+
     RegisterStepCallback(&OnStep);
     RegisterROMChangedCallback(&OnROMChanged);
 

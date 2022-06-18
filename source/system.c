@@ -85,6 +85,11 @@ void ToggleSingleStepMode()
     SingleStepMode = !SingleStepMode;
 }
 
+void EnableSingleStepMode()
+{
+    SingleStepMode = true;
+}
+
 void RequestSingleStep()
 {
     SingleStepPending = true;
@@ -280,7 +285,11 @@ void SystemTick(uint32_t dt)
                 DebugPrint("Warning: Capping clock cycles!\n");
             }
 
-            while (TickCycles < numCyclesForDt)
+            while (TickCycles < numCyclesForDt
+#if DEBUG_ENABLED
+                && !SingleStepMode  //If we hit a breakpoint during a step we need to break out.
+#endif
+                )
             {
                 cycles stepCycles = Step();
 
@@ -301,8 +310,7 @@ void SystemTick(uint32_t dt)
                 TickCycles += stepCycles;
             }
 
-            assert(TickCycles >= numCyclesForDt);
-            TickCycles -= numCyclesForDt;
+            TickCycles = MAX(0, TickCycles - numCyclesForDt);
 
             //Calculate emulation speed.
             CycleCounter += numCyclesForDt;

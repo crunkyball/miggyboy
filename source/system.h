@@ -99,9 +99,9 @@ void SystemTick(uint32_t dt);
 
 #if DEBUG_ENABLED
 void ToggleSingleStepMode();
+void EnableSingleStepMode();
 void RequestSingleStep();
 
-typedef void(*CallbackFunc)();
 void RegisterStepCallback(CallbackFunc callback);
 void RegisterROMChangedCallback(CallbackFunc callback);
 #endif
