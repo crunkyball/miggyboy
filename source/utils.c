@@ -3,7 +3,7 @@
 
 #include "utils.h"
 
-#include "windows/platform_debug.h"
+#include PLATFORM_INCLUDE(PLATFORM_NAME/platform_debug.h)
 
 bool FileRead(const char* pFileName, byte* pBuffer, int bufferSize)
 {

@@ -10,7 +10,7 @@
 #include "cpu.h"
 #include "opcode_debug.h"
 
-#include "windows/platform_debug.h"
+#include PLATFORM_INCLUDE(PLATFORM_NAME/platform_debug.h)
 
 struct DisassembledROMInstr DisassembledROM[ROM_SIZE];
 int DisassembledROMSize = 0;

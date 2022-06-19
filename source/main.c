@@ -1,8 +1,7 @@
 #include "system.h"
 #include "debug.h"
-#include "windows/platform_app.h"   //Need a better way to get this.
 
-#include <stdio.h>
+#include PLATFORM_INCLUDE(PLATFORM_NAME/platform_app.h)
 
 void Run()
 {

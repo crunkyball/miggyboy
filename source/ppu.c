@@ -23,6 +23,22 @@ static enum Mode CurrentMode = Mode_HBlank;
 //This can take 168-291 cycles, apparently. Does it matter if it's not emulated properly?
 #define TRANSFERRING_DATA_TO_LCD_PERIOD (SEARCHING_OAM_PERIOD + 170)
 
+enum Colour PPUGetTilePixColour(byte* pTileData, int x, int y)
+{
+    byte* pLineData = &pTileData[y * 2];	//2 bytes per line.
+
+    byte bit = 1 << (7 - x);
+    byte bit1 = (*pLineData & bit) == 0 ? 0 : 1;
+    byte bit2 = (*(pLineData + 1) & bit) == 0 ? 0 : 2;
+
+    byte paletteIndex = bit1 | bit2;
+
+    byte shiftAmount = paletteIndex * 2;
+    byte col = (*Register_BGP & (0b11 << shiftAmount)) >> shiftAmount;
+
+    return col;
+}
+
 bool PPUInit()
 {
     return true;

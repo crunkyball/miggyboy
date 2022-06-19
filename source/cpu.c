@@ -5,7 +5,7 @@
 #include "types.h"
 #include "system.h"
 
-#include "windows/platform_debug.h"
+#include PLATFORM_INCLUDE(PLATFORM_NAME/platform_debug.h)
 
 static struct CPURegisters Register;
 

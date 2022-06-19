@@ -6,6 +6,7 @@
 #include "platform_app.h"
 #include "system.h"
 #include "cpu.h"
+#include "ppu.h"
 #include "utils.h"
 
 #include "debug.h"
@@ -211,6 +212,39 @@ static void DrawDebugInfo()
     DrawDebugText(textX, textY += kTextGap, 0x000000FF, "H: %d", (cpuRegisters->F & (1 << 5)) == 0 ? 0 : 1);
     DrawDebugText(textX, textY += kTextGap, 0x000000FF, "C: %d", (cpuRegisters->F & (1 << 4)) == 0 ? 0 : 1);
 
+    //Tiles
+    textY = 160;
+    textX = 170;
+    DrawDebugText(textX, textY, 0x000000FF, "Tiles");
+
+    const int TILE_POS_START_X = 170;
+    const int TILE_POS_START_Y = 180;
+    const int TILES_PER_LINE = 32;
+    for (int tileAddr = VRAM_TILE_DATA_ADDR, tileIdx = 0; tileAddr < (VRAM_TILE_DATA_ADDR + VRAM_TILE_DATA_SIZE); tileAddr += BYTES_PER_TILE, ++tileIdx)
+    {
+        int tilePosX = TILE_POS_START_X + ((tileIdx % TILES_PER_LINE) * (TILE_WIDTH + 1));
+        int tilePosY = TILE_POS_START_Y + ((tileIdx / TILES_PER_LINE) * (TILE_HEIGHT + 1));
+
+        byte* pTileData = &Mem[tileAddr];
+        
+        for (int tileY = 0; tileY < TILE_HEIGHT; ++tileY)
+        {
+            for (int tileX = 0; tileX < TILE_WIDTH; ++tileX)
+            {
+                enum Colour col = PPUGetTilePixColour(&Mem[tileAddr], tileX, tileY);
+
+                switch (col)
+                {
+                    case ColourWhite: SDL_SetRenderDrawColor(WindowRenderer, 0xFF, 0xFF, 0xFF, 0xFF); break;
+                    case ColourLightGrey: SDL_SetRenderDrawColor(WindowRenderer, 0x54, 0x54, 0x54, 0xFF); break;
+                    case ColourDarkGrey: SDL_SetRenderDrawColor(WindowRenderer, 0xA9, 0xA9, 0xA9, 0xFF); break;
+                    case ColourBlack: SDL_SetRenderDrawColor(WindowRenderer, 0x00, 0x00, 0x00, 0xFF); break;
+                }
+
+                SDL_RenderDrawPoint(WindowRenderer, tilePosX + tileX, tilePosY + tileY);
+            }
+        }
+    }
 
     //Instructions
     DrawDebugText(10, 450, 0x0000FF, "(P) Toggle Single Step, ([) Step CPU, (B) Breakpoint, (-/=) Browse Program");
@@ -237,8 +271,8 @@ static void DrawBackground()
             int tileY = backgroundY / TILE_HEIGHT;
             int tileIdx = (tileY * BACKGROUND_TILES_PER_LINE) + tileX;
 
-            byte* TileLayout = &Mem[0x9800];
-            byte* TileData = &Mem[0x8000];
+            byte* TileLayout = &Mem[VRAM_TILE_MAP_0_ADDR];
+            byte* TileData = &Mem[VRAM_TILE_DATA_ADDR];
 
             byte tileId = TileLayout[tileIdx];
 
@@ -246,22 +280,15 @@ static void DrawBackground()
             int tilePixY = backgroundY % TILE_HEIGHT;
 
             byte* pTileData = &TileData[tileId * BYTES_PER_TILE];
-            byte* pLineData = &pTileData[tilePixY * 2];	//2 bytes per line.
 
-            //Need to do colour select.
-            byte bit = 1 << (7 - tilePixX);
-            byte bit1 = (*pLineData & bit) == 0 ? 0 : 1;
-            byte bit2 = (*(pLineData + 1) & bit) == 0 ? 0 : 2;
+            enum Colour col = PPUGetTilePixColour(pTileData, tilePixX, tilePixY);
 
-            byte col = bit1 | bit2;
-
-            if (col != 0)
+            switch (col)
             {
-                SDL_SetRenderDrawColor(WindowRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
-            }
-            else
-            {
-                SDL_SetRenderDrawColor(WindowRenderer, 0x00, 0x00, 0x00, 0xFF);
+                case ColourWhite: SDL_SetRenderDrawColor(WindowRenderer, 0x7F, 0x86, 0x0F, 0xFF); break;
+                case ColourLightGrey: SDL_SetRenderDrawColor(WindowRenderer, 0x57, 0x7C, 0x44, 0xFF); break;
+                case ColourDarkGrey: SDL_SetRenderDrawColor(WindowRenderer, 0x36, 0x5D, 0x48, 0xFF); break;
+                case ColourBlack: SDL_SetRenderDrawColor(WindowRenderer, 0x2A, 0x45, 0x3B, 0xFF); break;
             }
 
             SDL_RenderDrawPoint(WindowRenderer, x, y);

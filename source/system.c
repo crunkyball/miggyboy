@@ -8,7 +8,8 @@
 #include "ppu.h"
 
 #include "debug.h"
-#include "windows/platform_debug.h"
+
+#include PLATFORM_INCLUDE(PLATFORM_NAME/platform_debug.h)
 
 byte Mem[MEM_SIZE];
 
@@ -28,6 +29,7 @@ byte* Register_STAT = &Mem[REGISTER_STAT_ADDR];
 byte* Register_SCY = &Mem[REGISTER_SCY_ADDR];
 byte* Register_SCX = &Mem[REGISTER_SCX_ADDR];
 byte* Register_LY = &Mem[REGISTER_LY_ADDR];
+byte* Register_BGP = &Mem[REGISTER_BGP_ADDR];
 byte* Register_WY = &Mem[REGISTER_WY_ADDR];
 byte* Register_WX = &Mem[REGISTER_WX_ADDR];
 byte* Register_IE = &Mem[REGISTER_IE_ADDR];
