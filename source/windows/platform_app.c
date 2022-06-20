@@ -224,14 +224,13 @@ static void DrawDebugInfo()
     {
         int tilePosX = TILE_POS_START_X + ((tileIdx % TILES_PER_LINE) * (TILE_WIDTH + 1));
         int tilePosY = TILE_POS_START_Y + ((tileIdx / TILES_PER_LINE) * (TILE_HEIGHT + 1));
-
-        byte* pTileData = &Mem[tileAddr];
-        
+       
         for (int tileY = 0; tileY < TILE_HEIGHT; ++tileY)
         {
             for (int tileX = 0; tileX < TILE_WIDTH; ++tileX)
             {
-                enum Colour col = PPUGetTilePixColour(&Mem[tileAddr], tileX, tileY);
+                byte* pMem = AccessMem(tileAddr);
+                enum Colour col = PPUGetTilePixColour(pMem, tileX, tileY);
 
                 switch (col)
                 {
@@ -271,8 +270,8 @@ static void DrawBackground()
             int tileY = backgroundY / TILE_HEIGHT;
             int tileIdx = (tileY * BACKGROUND_TILES_PER_LINE) + tileX;
 
-            byte* TileLayout = &Mem[VRAM_TILE_MAP_0_ADDR];
-            byte* TileData = &Mem[VRAM_TILE_DATA_ADDR];
+            byte* TileLayout = AccessMem(VRAM_TILE_MAP_0_ADDR);
+            byte* TileData = AccessMem(VRAM_TILE_DATA_ADDR);
 
             byte tileId = TileLayout[tileIdx];
 

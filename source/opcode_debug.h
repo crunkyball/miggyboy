@@ -7,9 +7,9 @@
 
 #if DEBUG_ENABLED
 
-static int CPUExtendedOpGetDebugInfo(byte* pOpPtr, const char** pOpStr)
+static int CPUExtendedOpGetDebugInfo(byte opCode, const char** pOpStr)
 {
-    switch (*pOpPtr)
+    switch (opCode)
     {
         case 0x00: *pOpStr = "RLC B"; return 2;
         case 0x01: *pOpStr = "RLC C"; return 2;
@@ -287,11 +287,11 @@ static int CPUExtendedOpGetDebugInfo(byte* pOpPtr, const char** pOpStr)
     return 0;
 }
 
-static int CPUOpGetDebugInfo(byte* pOpPtr, const char** pOpStr)
+static int CPUOpGetDebugInfo(byte opCode, const char** pOpStr)
 {
     *pOpStr = NULL;
 
-    switch (*pOpPtr)
+    switch (opCode)
     {
         case 0x00: *pOpStr = "NOP"; return 1;
         case 0x01: *pOpStr = "LD BC,d16"; return 3;
@@ -509,7 +509,7 @@ static int CPUOpGetDebugInfo(byte* pOpPtr, const char** pOpStr)
         case 0xC9: *pOpStr = "RET"; return 1;
         case 0xCA: *pOpStr = "JP Z,a16"; return 3;
 
-        case 0xCB: return CPUExtendedOpGetDebugInfo(pOpPtr+1, pOpStr);
+        //case 0xCB: *pOpStr = ""; return 0; //Extended opcode
 
         case 0xCC: *pOpStr = "CALL Z,a16"; return 3;
         case 0xCD: *pOpStr = "CALL a16"; return 3;

@@ -85,14 +85,14 @@ static int8_t FromTwosComplement(byte b)
 
 static void StackPush(uint16_t value)
 {
-    Mem[Register.SP] = value & 0xFF;
-    Mem[Register.SP - 1] = value >> 8;
+    WriteMem(Register.SP, value & 0xFF);
+    WriteMem(Register.SP - 1, value >> 8);
     Register.SP -= 2;
 }
 
 static uint16_t StackPop()
 {
-    uint16_t val = Mem[Register.SP + 2] | (Mem[Register.SP + 1] << 8);
+    uint16_t val = ReadMem(Register.SP + 2) | (ReadMem(Register.SP + 1) << 8);
     Register.SP += 2;
     return val;
 }
@@ -115,7 +115,7 @@ static cycles Op_Halt()
 static cycles Op_LoadImmediate8(byte* pR)
 {
     //2 bytes, 8 cycles, No flags
-    *pR = Mem[Register.PC + 1];
+    *pR = ReadMem(Register.PC + 1);
     Register.PC += 2;
     return 8;
 }
@@ -123,7 +123,7 @@ static cycles Op_LoadImmediate8(byte* pR)
 static cycles Op_LoadImmediate16(uint16_t* pR)
 {
     //3 bytes, 12 cycles, No flags
-    *pR = Mem[Register.PC + 1] | (Mem[Register.PC + 2] << 8);
+    *pR = ReadMem16(Register.PC + 1);
     Register.PC += 3;
     return 12;
 }
@@ -139,7 +139,7 @@ static cycles Op_LoadRegister8(byte* pToR, const byte* pFromR)
 static cycles Op_LoadAddrRegister(uint16_t addr, const byte* pR)
 {
     //1 byte, 8 cycles, No flags
-    Mem[addr] = *pR;
+    WriteMem(addr, *pR);
     Register.PC += 1;
     return 8;
 }
@@ -147,7 +147,7 @@ static cycles Op_LoadAddrRegister(uint16_t addr, const byte* pR)
 static cycles Op_LoadRegisterAddr(byte* pR, uint16_t addr)
 {
     //1 byte, 8 cycles, No flags
-    *pR = Mem[addr];
+    *pR = ReadMem(addr);
     Register.PC += 1;
     return 8;
 }
@@ -155,7 +155,8 @@ static cycles Op_LoadRegisterAddr(byte* pR, uint16_t addr)
 static cycles Op_LoadAddrImmediate(uint16_t* pRAddr)
 {
     //2 bytes, 12 cycles, No flags
-    Mem[*pRAddr] = Mem[Register.PC + 1];
+    byte val = ReadMem(Register.PC + 1);
+    WriteMem(*pRAddr, val);
     Register.PC += 2;
     return 12;
 }
@@ -163,7 +164,7 @@ static cycles Op_LoadAddrImmediate(uint16_t* pRAddr)
 static cycles Op_LoadAddrRegisterAndInc(uint16_t* pRAddr, const byte* pR)
 {
     //1 byte, 8 cycles, No flags
-    Mem[*pRAddr] = *pR;
+    WriteMem(*pRAddr, *pR);
     (*pRAddr)++;
     Register.PC += 1;
     return 8;
@@ -172,7 +173,7 @@ static cycles Op_LoadAddrRegisterAndInc(uint16_t* pRAddr, const byte* pR)
 static cycles Op_LoadAddrRegisterAndDec(uint16_t* pRAddr, const byte* pR)
 {
     //1 byte, 8 cycles, No flags
-    Mem[*pRAddr] = *pR;
+    WriteMem(*pRAddr, *pR);
     (*pRAddr)--;
     Register.PC += 1;
     return 8;
@@ -181,7 +182,7 @@ static cycles Op_LoadAddrRegisterAndDec(uint16_t* pRAddr, const byte* pR)
 static cycles Op_LoadRegisterAddrAndInc(byte* pR, uint16_t* pRAddr)
 {
     //1 byte, 8 cycles, No flags
-    *pR = Mem[*pRAddr];
+    *pR = ReadMem(*pRAddr);
     (*pRAddr)++;
     Register.PC += 1;
     return 8;
@@ -190,7 +191,7 @@ static cycles Op_LoadRegisterAddrAndInc(byte* pR, uint16_t* pRAddr)
 static cycles Op_LoadRegisterAddrAndDec(byte* pR, uint16_t* pRAddr)
 {
     //1 byte, 8 cycles, No flags
-    *pR = Mem[*pRAddr];
+    *pR = ReadMem(*pRAddr);
     (*pRAddr)--;
     Register.PC += 1;
     return 8;
@@ -199,8 +200,8 @@ static cycles Op_LoadRegisterAddrAndDec(byte* pR, uint16_t* pRAddr)
 static cycles Op_LoadImmediateAddr8FromA()
 {
     //2 bytes, 12 cycles, No flags
-    uint16_t addr = 0xFF00 + Mem[Register.PC + 1];
-    Mem[addr] = Register.A;
+    uint16_t addr = 0xFF00 + ReadMem(Register.PC + 1);
+    WriteMem(addr, Register.A);
     Register.PC += 2;
     return 12;
 }
@@ -208,8 +209,8 @@ static cycles Op_LoadImmediateAddr8FromA()
 static cycles Op_LoadAFromImmediateAddr8()
 {
     //2 bytes, 12 cycles, No flags
-    uint16_t addr = 0xFF00 + Mem[Register.PC + 1];
-    Register.A = Mem[addr];
+    uint16_t addr = 0xFF00 + ReadMem(Register.PC + 1);
+    Register.A = ReadMem(addr);
     Register.PC += 2;
     return 12;
 }
@@ -217,8 +218,8 @@ static cycles Op_LoadAFromImmediateAddr8()
 static cycles Op_LoadImmediateAddr16FromA()
 {
     //3 bytes, 16 cycles, No flags
-    uint16_t addr = Mem[Register.PC + 1] | (Mem[Register.PC + 2] << 8);
-    Mem[addr] = Register.A;
+    uint16_t addr = ReadMem16(Register.PC + 1);
+    WriteMem(addr, Register.A);
     Register.PC += 3;
     return 16;
 }
@@ -226,8 +227,8 @@ static cycles Op_LoadImmediateAddr16FromA()
 static cycles Op_LoadAFromImmediateAddr16()
 {
     //3 bytes, 16 cycles, No flags
-    uint16_t addr = Mem[Register.PC + 1] | (Mem[Register.PC + 2] << 8);
-    Register.A = Mem[addr];
+    uint16_t addr = ReadMem16(Register.PC + 1);
+    Register.A = ReadMem(addr);
     Register.PC += 3;
     return 16;
 }
@@ -274,7 +275,8 @@ static cycles Op_CompareRegister(const byte* pR)
 static cycles Op_CompareAddr()
 {
     //1 byte, 8 cycles, Flags Z1HC
-    DoCompare(Mem[Register.HL]);
+    byte val = ReadMem(Register.HL);
+    DoCompare(val);
     Register.PC += 1;
     return 8;
 }
@@ -282,7 +284,8 @@ static cycles Op_CompareAddr()
 static cycles Op_CompareImmediate()
 {
     //2 bytes, 8 cycles, Flags Z1HC
-    DoCompare(Mem[Register.PC + 1]);
+    byte val = ReadMem(Register.PC + 1);
+    DoCompare(val);
     Register.PC += 2;
     return 8;
 }
@@ -304,7 +307,8 @@ static cycles Op_AndRegister(byte* pR)
 static cycles Op_AndImmediate()
 {
     //2 bytes, 8 cycles, Flags Z010
-    DoAnd(Mem[Register.PC + 1]);
+    byte val = ReadMem(Register.PC + 1);
+    DoAnd(val);
     Register.PC += 2;
     return 8;
 }
@@ -326,7 +330,8 @@ static cycles Op_OrRegister(byte* pR)
 static cycles Op_OrImmediate()
 {
     //2 bytes, 8 cycles, Flags Z000
-    DoOr(Mem[Register.PC + 1]);
+    byte val = ReadMem(Register.PC + 1);
+    DoOr(val);
     Register.PC += 2;
     return 8;
 }
@@ -348,7 +353,8 @@ static cycles Op_XorRegister(byte* pR)
 static cycles Op_XorImmediate()
 {
     //2 bytes, 8 cycles, Flags Z000
-    DoXor(Mem[Register.PC + 1]);
+    byte val = ReadMem(Register.PC + 1);
+    DoXor(val);
     Register.PC += 2;
     return 8;
 }
@@ -381,7 +387,9 @@ static cycles Op_Increment8(byte* pR)
 static cycles Op_IncrementAddr(uint16_t addr)
 {
     //1 byte, 12 cycles, Flags Z0H-
-    DoIncrement8(&Mem[addr]);
+    byte val = ReadMem(addr);
+    DoIncrement8(&val);
+    WriteMem(addr, val);
     Register.PC += 1;
     return 12;
 }
@@ -413,7 +421,9 @@ static cycles Op_Decrement8(byte* pR)
 static cycles Op_DecrementAddr(uint16_t addr)
 {
     //1 byte, 12 cycles, Flags Z1H-
-    DoDecrement8(&Mem[addr]);
+    byte val = ReadMem(addr);
+    DoDecrement8(&val);
+    WriteMem(addr, val);
     Register.PC += 1;
     return 12;
 }
@@ -450,7 +460,8 @@ static cycles Op_AddRegister(const byte* pR, bool plusCarry)
 static cycles Op_AddAddr(bool plusCarry)
 {
     //1 byte, 8 cycles, Flags Z0HC
-    DoAdd(Mem[Register.HL], plusCarry);
+    byte val = ReadMem(Register.HL);
+    DoAdd(val, plusCarry);
     Register.PC += 1;
     return 8;
 }
@@ -458,7 +469,8 @@ static cycles Op_AddAddr(bool plusCarry)
 static cycles Op_AddImmediate(bool plusCarry)
 {
     //2 bytes, 8 cycles, Flags Z0HC
-    DoAdd(Mem[Register.PC + 1], plusCarry);
+    byte val = ReadMem(Register.PC + 1);
+    DoAdd(val, plusCarry);
     Register.PC += 2;
     return 8;
 }
@@ -499,7 +511,8 @@ static cycles Op_SubtractRegister(const byte* pR, bool plusCarry)
 static cycles Op_SubtractAddr(bool plusCarry)
 {
     //1 byte, 8 cycles, Flags Z1HC
-    DoSubtract(Mem[Register.HL], plusCarry);
+    byte val = ReadMem(Register.HL);
+    DoSubtract(val, plusCarry);
     Register.PC += 1;
     return 8;
 }
@@ -507,7 +520,8 @@ static cycles Op_SubtractAddr(bool plusCarry)
 static cycles Op_SubtractImmediate(bool plusCarry)
 {
     //2 bytes, 8 cycles, Flags Z1HC
-    DoSubtract(Mem[Register.PC + 1], plusCarry);
+    byte val = ReadMem(Register.PC + 1);
+    DoSubtract(val, plusCarry);
     Register.PC += 2;
     return 8;
 }
@@ -515,7 +529,8 @@ static cycles Op_SubtractImmediate(bool plusCarry)
 static cycles Op_Jump()
 {
     //2 bytes, 12 cycles, No flags
-    int8_t jumpAmount = FromTwosComplement(Mem[Register.PC + 1]);    
+    byte val = ReadMem(Register.PC + 1);
+    int8_t jumpAmount = FromTwosComplement(val);
     Register.PC += (2 + jumpAmount);
     return 12;
 }
@@ -523,7 +538,7 @@ static cycles Op_Jump()
 static cycles Op_JumpAddr()
 {
     //3 bytes, 16 cycles, No flags
-    Register.PC = (Register.PC = Mem[Register.PC + 1] | (Mem[Register.PC + 2] << 8));
+    Register.PC = ReadMem16(Register.PC + 1);
     return 16;
 }
 
@@ -537,7 +552,8 @@ static cycles Op_JumpRegister(const uint16_t* pR)
 static cycles Op_JumpIf(enum Flag flag, bool ifTrue)
 {
     //2 bytes, 12/8 cycles, No flags
-    int8_t jumpAmount = FromTwosComplement(Mem[Register.PC + 1]);
+    byte val = ReadMem(Register.PC + 1);
+    int8_t jumpAmount = FromTwosComplement(val);
     Register.PC += 2;
 
     if (ifTrue == IsFlagSet(flag))
@@ -554,7 +570,7 @@ static cycles Op_JumpAddrIf(enum Flag flag, bool ifTrue)
     //3 bytes, 16/12 cycles, No flags
     if (ifTrue == IsFlagSet(flag))
     {
-        Register.PC = (Register.PC = Mem[Register.PC + 1] | (Mem[Register.PC + 2] << 8));
+        Register.PC = ReadMem16(Register.PC + 1);
         return 16;
     }
 
@@ -566,7 +582,7 @@ static cycles Op_Call()
 {
     //3 bytes, 24 cycles, No flags
     StackPush(Register.PC + 3);
-    Register.PC = Mem[Register.PC + 1] | (Mem[Register.PC + 2] << 8);
+    Register.PC = ReadMem16(Register.PC + 1);
     return 24;
 }
 
@@ -576,7 +592,7 @@ static cycles Op_CallIf(enum Flag flag, bool ifTrue)
     if (ifTrue == IsFlagSet(flag))
     {
         StackPush(Register.PC + 3);
-        Register.PC = Mem[Register.PC + 1] | (Mem[Register.PC + 2] << 8);
+        Register.PC = ReadMem16(Register.PC + 1);
         return 24;
     }
 
@@ -648,7 +664,9 @@ static cycles Op_SetRegisterBit(byte* pR, byte bit)
 static cycles Op_SetAddrBit(uint16_t addr, byte bit)
 {
     //2 bytes, 16 cycles, No flags
-    Mem[addr] |= (1 << bit);
+    byte val = ReadMem(addr);
+    val |= (1 << bit);
+    WriteMem(addr, val);
     Register.PC += 2;
     return 16;
 }
@@ -665,7 +683,8 @@ static cycles Op_TestRegisterBit(const byte* pR, byte bit)
 static cycles Op_TestAddrBit(uint16_t addr, byte bit)
 {
     //2 bytes, 12 cycles, Flags Z01-
-    bool bitZero = (Mem[addr] & (1 << bit)) == 0;
+    byte val = ReadMem(addr);
+    bool bitZero = (val & (1 << bit)) == 0;
     SetFlags(bitZero ? FlagSet_On : FlagSet_Off, FlagSet_Off, FlagSet_On, FlagSet_Leave);
     Register.PC += 2;
     return 12;
@@ -682,7 +701,9 @@ static cycles Op_ResetRegisterBit(byte* pR, byte bit)
 static cycles Op_ResetAddrBit(uint16_t addr, byte bit)
 {
     //2 bytes, 16 cycles, No flags
-    UnsetRegisterBit(&Mem[addr], bit);
+    byte val = ReadMem(addr);
+    UnsetRegisterBit(&val, bit);
+    WriteMem(addr, val);
     Register.PC += 2;
     return 16;
 }
@@ -705,7 +726,9 @@ static cycles Op_RotateRegisterLeftWithCarry(byte* pR)
 static cycles Op_RotateAddrLeftWithCarry(uint16_t addr)
 {
     //2 bytes, 16 cycles, Flags Z00C
-    DoRotateLeftWithCarry(&Mem[addr]);
+    byte val = ReadMem(addr);
+    DoRotateLeftWithCarry(&val);
+    WriteMem(addr, val);
     Register.PC += 2;
     return 16;
 }
@@ -728,7 +751,9 @@ static cycles Op_RotateRegisterLeftThroughCarry(byte* pR)
 static cycles Op_RotateAddrLeftThroughCarry(uint16_t addr)
 {
     //2 bytes, 16 cycles, Flags Z00C
-    DoRotateLeftThroughCarry(&Mem[addr]);
+    byte val = ReadMem(addr);
+    DoRotateLeftThroughCarry(&val);
+    WriteMem(addr, val);
     Register.PC += 2;
     return 16;
 }
@@ -768,7 +793,9 @@ static cycles Op_RotateRegisterRightWithCarry(byte* pR)
 static cycles Op_RotateAddrRightWithCarry(uint16_t addr)
 {
     //2 bytes, 16 cycles, Flags Z00C
-    DoRotateRightWithCarry(&Mem[addr]);
+    byte val = ReadMem(addr);
+    DoRotateRightWithCarry(&val);
+    WriteMem(addr, val);
     Register.PC += 2;
     return 16;
 }
@@ -791,7 +818,9 @@ static cycles Op_RotateRegisterRightThroughCarry(byte* pR)
 static cycles Op_RotateAddrRightThroughCarry(uint16_t addr)
 {
     //2 bytes, 16 cycles, Flags Z00C
-    DoRotateRightThroughCarry(&Mem[addr]);
+    byte val = ReadMem(addr);
+    DoRotateRightThroughCarry(&val);
+    WriteMem(addr, val);
     Register.PC += 2;
     return 16;
 }
@@ -831,7 +860,9 @@ static cycles Op_ShiftRegisterLeft(byte* pR)
 static cycles Op_ShiftAddrLeft(uint16_t addr)
 {
     //2 byte, 16 cycles, Flags Z00C
-    DoShiftLeft(&Mem[addr]);
+    byte val = ReadMem(addr);
+    DoShiftLeft(&val);
+    WriteMem(addr, val);
     Register.PC += 2;
     return 16;
 }
@@ -862,7 +893,9 @@ static cycles Op_ShiftRegisterRight(byte* pR, bool resetMSB)
 static cycles Op_ShiftAddrRight(uint16_t addr, bool resetMSB)
 {
     //2 byte, 16 cycles, Flags Z00C
-    DoShiftRight(&Mem[addr], resetMSB);
+    byte val = ReadMem(addr);
+    DoShiftRight(&val, resetMSB);
+    WriteMem(addr, val);
     Register.PC += 2;
     return 16;
 }
@@ -883,16 +916,9 @@ static cycles Op_Restart(uint16_t addr)
     return 16;
 }
 
-static bool debugOpCodes = false;
-
 static cycles HandleOpCode()
 {
-    byte opCode = Mem[Register.PC];
-
-    if (debugOpCodes)
-    {
-        DebugPrint("%d: 0x%02X\n", Register.PC, Mem[Register.PC]);
-    }
+    byte opCode = ReadMem(Register.PC);
 
     switch (opCode)
     {
@@ -1188,7 +1214,7 @@ static cycles HandleOpCode()
         //CB
         case 0xCB:
         {
-            byte extOpCode = Mem[Register.PC + 1];
+            byte extOpCode = ReadMem(Register.PC + 1);
 
             switch (extOpCode)
             {

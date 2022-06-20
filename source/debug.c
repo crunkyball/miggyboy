@@ -170,7 +170,22 @@ void DisassembleROM()
         else
         {
             const char* pOpStr = NULL;
-            int opSize = CPUOpGetDebugInfo(&Mem[memAddr], &pOpStr);
+            int opSize = 0;
+
+            byte opCode = ReadMem(memAddr);
+            uint16_t dataAddr = memAddr + 1;
+
+            if (opCode == 0xCB)
+            {
+                dataAddr++;
+                opCode = ReadMem(memAddr + 1);
+                opSize = CPUExtendedOpGetDebugInfo(opCode, &pOpStr);
+            }
+            else
+            {
+                opSize = CPUOpGetDebugInfo(opCode, &pOpStr);
+            }
+
             char dataStr[16];
 
             char* pDataLoc = NULL;
@@ -180,31 +195,36 @@ void DisassembleROM()
             if (pDataLoc = strstr(pOpStr, "d8"))
             {
                 dataLocLen = 2; //strlen("d8")
-                sprintf_s(dataStr, 16, "$%x", Mem[memAddr + 1]);
+                byte val = ReadMem(dataAddr);
+                sprintf_s(dataStr, 16, "$%x", val);
             }
             //"d16" 16-bit data
             else if (pDataLoc = strstr(pOpStr, "d16"))
             {
                 dataLocLen = 3; //strlen("d16")
-                sprintf_s(dataStr, 16, "$%.4x", *(uint16_t*)&Mem[memAddr + 1]);
+                uint16_t val = ReadMem16(dataAddr);
+                sprintf_s(dataStr, 16, "$%.4x", val);
             }
             //"a8" 8-bit unsigned data added to 0xFF00
             else if (pDataLoc = strstr(pOpStr, "a8"))
             {
                 dataLocLen = 2; //strlen("a8")
-                sprintf_s(dataStr, 16, "$FF00+$%x", Mem[memAddr + 1]);
+                byte val = ReadMem(dataAddr);
+                sprintf_s(dataStr, 16, "$FF00+$%x", val);
             }
             //"a16" little-endian 16-bit address
             else if (pDataLoc = strstr(pOpStr, "a16"))
             {
                 dataLocLen = 3; //strlen("a16")
-                sprintf_s(dataStr, 16, "$%.4x", *(uint16_t*)&Mem[memAddr + 1]);
+                uint16_t val = ReadMem16(dataAddr);
+                sprintf_s(dataStr, 16, "$%.4x", val);
             }
             //"r8" 8-bit signed data
             else if (pDataLoc = strstr(pOpStr, "r8"))
             {
                 dataLocLen = 2; //strlen("r8")
-                sprintf_s(dataStr, 16, "%d", *(int8_t*)&Mem[memAddr + 1]);
+                int8_t val = (int8_t)ReadMem(dataAddr);
+                sprintf_s(dataStr, 16, "%d", val);
             }
 
             if (pDataLoc != NULL)
@@ -212,7 +232,6 @@ void DisassembleROM()
                 int leftLen = (int)(pDataLoc - pOpStr);
                 strncpy_s(DisassembledROM[DisassembledROMSize].OpStr, MAX_OP_LENGTH, pOpStr, leftLen);
                 sprintf_s(DisassembledROM[DisassembledROMSize].OpStr + leftLen, MAX_OP_LENGTH - leftLen, "%s%s", dataStr, pDataLoc + dataLocLen);
-                int a = 0;
             }
             else
             {

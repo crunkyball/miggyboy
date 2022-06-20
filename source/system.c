@@ -11,7 +11,8 @@
 
 #include PLATFORM_INCLUDE(PLATFORM_NAME/platform_debug.h)
 
-byte Mem[MEM_SIZE];
+//Addressable Memory. This should be accessed via the Read/Write/Access functions to allow for memory mapping.
+static byte Mem[MEM_SIZE];
 
 //Shortcuts
 byte* ROM = &Mem[ROM_ADDR];
@@ -55,7 +56,6 @@ static byte Timer = 0;
 
 #define BOOT_ROM_SIZE 0x100
 static byte BootROM[BOOT_ROM_SIZE];
-static bool BootROMMapped = false;
 
 struct CartridgeHeader
 {
@@ -71,10 +71,6 @@ struct CartridgeHeader
     byte HeaderChecksum;    //0x014D
     byte GlobalChecksum[2]; //0x014E-0x014F
 };
-
-//A store where we swap out the cartride data for the boot rom and then swap it back when the boot rom is done.
-//This is temporary until I add support for some kind of memory mapping. That'll be required for bank switching, anyway.
-static byte CartridgeTemp[BOOT_ROM_SIZE];
 
 #if DEBUG_ENABLED
 static bool SingleStepMode = false;
@@ -107,6 +103,35 @@ void RegisterROMChangedCallback(CallbackFunc callback)
     ROMChangedCallback = callback;
 }
 #endif
+
+//Memory access functions. Ideally, most things should be using Read/WriteMem in-case I need 
+//to add bus timing emulation at some point. Maybe AccessMem should be removed in future...
+byte* AccessMem(uint16_t addr)
+{
+    if (Mem[0xFF50] == 0 && addr < BOOT_ROM_SIZE)   //Boot ROM mapped.
+    {
+        return &BootROM[addr];
+    }
+
+    return &Mem[addr];
+}
+
+byte ReadMem(uint16_t addr)
+{
+    return *AccessMem(addr);
+}
+
+void WriteMem(uint16_t addr, byte val)
+{
+    byte* pAddr = AccessMem(addr);
+    *pAddr = val;
+}
+
+uint16_t ReadMem16(uint16_t addr)
+{
+    byte* pAddr = AccessMem(addr);
+    return *pAddr | (*(pAddr + 1) << 8);
+}
 
 void FireInterrupt(enum Interrupt interrupt)
 {
@@ -174,40 +199,6 @@ bool SystemInit(const char* pRomFile)
 
         assert(pHeader->CartridgeType == 0);    //We don't support any fancy shit yet!
     }
-    else
-    {
-        //We don't have a cartride so just fake some stuff to make the emulator nice to run.
-        byte nintendoLogoData[] = { 0xCE, 0xED, 0x66, 0x66, 0xCC, 0x0D, 0x00, 0x0B, 0x03, 0x73, 0x00, 0x83, 0x00, 0x0C, 0x00, 0x0D,
-                                    0x00, 0x08, 0x11, 0x1F, 0x88, 0x89, 0x00, 0x0E, 0xDC, 0xCC, 0x6E, 0xE6, 0xDD, 0xDD, 0xD9, 0x99,
-                                    0xBB, 0xBB, 0x67, 0x63, 0x6E, 0x0E, 0xEC, 0xCC, 0xDD, 0xDC, 0x99, 0x9F, 0xBB, 0xB9, 0x33, 0x3E };
-        memcpy(&Mem[0x0104], nintendoLogoData, sizeof(nintendoLogoData));
-
-        //Fake cartridge header.
-        Mem[0x0134] = 'T';
-        Mem[0x0135] = 'E';
-        Mem[0x0136] = 'S';
-        Mem[0x0137] = 'T';
-
-        byte checksum = 0;
-        for (int i = 0x0134; i <= 0x014C; ++i)
-        {
-            checksum -= Mem[i] + 1;
-        }
-
-        Mem[0x014D] = checksum;
-
-        //Hack to force the boot rom to stay on screen until games are actually supported.
-        //This is where the cartridge code is executed so just force it to loop.
-        Mem[0x100] = 0xC3;  //Jump to address
-        *((uint16_t*)&Mem[0x101]) = 0x100;
-    }
-
-    //Copy the cartride data into the temporary store until the boot rom is finished.
-    memcpy(CartridgeTemp, ROM, BOOT_ROM_SIZE);
-
-    //Load the boot rom into memory.
-    memcpy(ROM, BootROM, BOOT_ROM_SIZE);
-    BootROMMapped = true;
 
     byte interruptOps[NUM_INTERRUPTS] = {
         InterruptOp_VBlank,
@@ -293,14 +284,13 @@ void SystemTick(uint32_t dt)
 #endif
                 )
             {
+                byte bootROMMapVal = Mem[0xFF50];
+
                 cycles stepCycles = Step();
 
-                //Hacky hacky hack hack!
-                if (BootROMMapped && Mem[0xFF50] != 0)
+                //May be a better way of doing this but probably after I've added MBC support.
+                if (bootROMMapVal != Mem[0xFF50])
                 {
-                    memcpy(ROM, CartridgeTemp, BOOT_ROM_SIZE);
-                    BootROMMapped = false;
-
 #if DEBUG_ENABLED
                     if (ROMChangedCallback != NULL)
                     {

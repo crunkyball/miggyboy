@@ -22,9 +22,6 @@
 #define RAM_ADDR 0xC000
 #define RAM_SIZE 8*1024
 
-//Addressable Memory
-extern byte Mem[];
-
 //I/O Registers
 #define REGISTER_DIV_ADDR 0xFF04
 extern byte* Register_DIV;
@@ -102,6 +99,13 @@ enum InterruptOp
 #define BYTES_PER_TILE 16
 
 static const int BACKGROUND_TILES_PER_LINE = BACKGROUND_RES_X / TILE_WIDTH;
+
+byte* AccessMem(uint16_t addr);
+
+byte ReadMem(uint16_t addr);
+void WriteMem(uint16_t addr, byte val);
+
+uint16_t ReadMem16(uint16_t addr);
 
 void FireInterrupt(enum Interrupt interrupt);
 
