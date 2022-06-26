@@ -156,6 +156,8 @@ static void DrawDebugInfo()
             }
 
             disassemblyIdx++;
+
+            DrawDebugText(textX, textY, 0x000000FF, "%s0x%.4X: %s", opAddr == cpuRegisters->PC ? ">" : " ", opAddr, pOpStr);
         }
 
         if (i == SelectedDisassemblyIndex)
@@ -164,8 +166,6 @@ static void DrawDebugInfo()
             SDL_Rect rect = { textX + 7, textY, 193, 16 };
             SDL_RenderDrawRect(WindowRenderer, &rect);
         }
-
-        DrawDebugText(textX, textY, 0x000000FF, "%s0x%.4X: %s", opAddr == cpuRegisters->PC ? ">" : " ", opAddr, pOpStr);
     }
 
     //Callstack
@@ -194,17 +194,29 @@ static void DrawDebugInfo()
     //CPU Registers
     textY = 150;
     textX = 10;
-    DrawDebugText(textX, textY, 0x000000FF, "Registers");
+    DrawDebugText(textX, textY, 0x000000FF, "CPU Registers");
     DrawDebugText(textX, textY += kTextGap, 0x000000FF, "A: 0x%.2X", cpuRegisters->A);
     DrawDebugText(textX, textY += kTextGap, 0x000000FF, "B: 0x%.2X", cpuRegisters->B);
     DrawDebugText(textX, textY += kTextGap, 0x000000FF, "C: 0x%.2X", cpuRegisters->C);
     DrawDebugText(textX, textY += kTextGap, 0x000000FF, "D: 0x%.2X", cpuRegisters->D);
     DrawDebugText(textX, textY += kTextGap, 0x000000FF, "E: 0x%.2X", cpuRegisters->E);
+    DrawDebugText(textX, textY += kTextGap, 0x000000FF, "F: 0x%.2X", cpuRegisters->F);
     DrawDebugText(textX, textY += kTextGap, 0x000000FF, "H: 0x%.2X", cpuRegisters->H);
     DrawDebugText(textX, textY += kTextGap, 0x000000FF, "L: 0x%.2X", cpuRegisters->L);
+    DrawDebugText(textX, textY += kTextGap, 0x000000FF, "SP: 0x%.4X", cpuRegisters->SP);
+    DrawDebugText(textX, textY += kTextGap, 0x000000FF, "PC: 0x%.4X", cpuRegisters->PC);
+
+    //Hardware Registers
+    textY = 320;
+    textX = 10;
+    DrawDebugText(textX, textY += kTextGap, 0x000000FF, "Hardware Registers");
+    DrawDebugText(textX, textY += kTextGap, 0x000000FF, "P1: 0x%.2X", *Register_P1);
+    DrawDebugText(textX, textY += kTextGap, 0x000000FF, "IF: 0x%.2X", *Register_IF);
+    DrawDebugText(textX, textY += kTextGap, 0x000000FF, "LCDC: 0x%.2X", *Register_LCDC);
+    DrawDebugText(textX, textY += kTextGap, 0x000000FF, "IE: 0x%.2X", *Register_IE);
 
     //Flags
-    textY = 150;
+    textY = 180;
     textX = 100;
     DrawDebugText(textX, textY, 0x000000FF, "Flags");
     DrawDebugText(textX, textY += kTextGap, 0x000000FF, "Z: %d", (cpuRegisters->F & (1 << 7)) == 0 ? 0 : 1);
@@ -372,6 +384,7 @@ bool AppTick()
                 case SDLK_MINUS: DecreaseDisassemblyIndex(); break;
                 case SDLK_EQUALS: IncreaseDisassemblyIndex(); break;
                 case SDLK_b: ToggleDisassemblyBreakpoint(); break;
+                case SDLK_d: DebugDumpDisassembly(); break;
 #endif
             }
         }

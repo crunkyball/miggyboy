@@ -19,7 +19,8 @@ byte* ROM = &Mem[ROM_ADDR];
 byte* VRAM = &Mem[VRAM_ADDR];
 byte* RAM = &Mem[RAM_ADDR];
 
-//I/O Registers
+//Hardware Registers
+byte* Register_P1 = &Mem[REGISTER_P1_ADDR];
 byte* Register_DIV = &Mem[REGISTER_DIV_ADDR];
 byte* Register_TIMA = &Mem[REGISTER_TIMA_ADDR];
 byte* Register_TMA = &Mem[REGISTER_TMA_ADDR];
@@ -104,6 +105,27 @@ void RegisterROMChangedCallback(CallbackFunc callback)
 }
 #endif
 
+void SetInputRegisterState()
+{
+    byte directionButtonsMask = 1 << 4;
+    byte actionButtonsMask = 1 << 5;
+
+    bool directionButtons = (*Register_P1 & directionButtonsMask) != 0;
+    bool actionButtons = (*Register_P1 & actionButtonsMask) != 0;
+
+    //Still need to handle input. For now just say nothing was pressed.
+    *Register_P1 = 0xCF;
+
+    if (directionButtons)
+    {
+        *Register_P1 |= directionButtonsMask;
+    }
+    else if (actionButtons)
+    {
+        *Register_P1 |= actionButtonsMask;
+    }
+}
+
 //Memory access functions. Ideally, most things should be using Read/WriteMem in-case I need 
 //to add bus timing emulation at some point. Maybe AccessMem should be removed in future...
 byte* AccessMem(uint16_t addr)
@@ -125,6 +147,11 @@ void WriteMem(uint16_t addr, byte val)
 {
     byte* pAddr = AccessMem(addr);
     *pAddr = val;
+
+    if (addr == REGISTER_P1_ADDR)
+    {
+        SetInputRegisterState();
+    }
 }
 
 uint16_t ReadMem16(uint16_t addr)
@@ -165,6 +192,23 @@ void TimerTick(cycles numCycles)
 bool SystemInit(const char* pRomFile)
 {
     uint16_t startAddr = 0;
+
+    //Initialise system state as required (https://gbdev.io/pandocs/Power_Up_Sequence.html).
+    *Register_P1 = 0xCF;
+    *Register_DIV = 0x18;
+    *Register_TIMA = 0x00;
+    *Register_TMA = 0x00;
+    *Register_TAC = 0x00;
+    *Register_IF = 0xE1;
+    *Register_LCDC = 0x91;
+    *Register_STAT = 0x81;
+    *Register_SCY = 0x00;
+    *Register_SCX = 0x00;
+    *Register_LY = 0x91;
+    *Register_BGP = 0xFC;
+    *Register_WY = 0x00;
+    *Register_WX = 0x00;
+    *Register_IE = 0x00;
 
     //Reading from the cartridge when there isn't one in results in 0xFF.
     memset(ROM, 0xFF, ROM_SIZE);

@@ -29,6 +29,8 @@ extern uint16_t DebugBreakpoints[MAX_BREAKPOINTS];
 
 int GetDisassembledROMIdxFromAddr(uint16_t romAddr);
 
+void DebugDumpDisassembly();
+
 void DebugToggleBreakpoint(uint16_t disassemblyAddr);
 bool DebugHasBreakpoint(uint16_t disassemblyAddr);
 

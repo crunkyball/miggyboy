@@ -85,14 +85,14 @@ static int8_t FromTwosComplement(byte b)
 
 static void StackPush(uint16_t value)
 {
-    WriteMem(Register.SP, value & 0xFF);
-    WriteMem(Register.SP - 1, value >> 8);
     Register.SP -= 2;
+    WriteMem(Register.SP, value >> 8);
+    WriteMem(Register.SP + 1, value & 0xFF);
 }
 
 static uint16_t StackPop()
 {
-    uint16_t val = ReadMem(Register.SP + 2) | (ReadMem(Register.SP + 1) << 8);
+    uint16_t val = (ReadMem(Register.SP) << 8) | ReadMem(Register.SP + 1);
     Register.SP += 2;
     return val;
 }
@@ -304,6 +304,15 @@ static cycles Op_AndRegister(byte* pR)
     return 4;
 }
 
+static cycles Op_AndAddr()
+{
+    //1 byte, 8 cycles, Flags Z010
+    byte val = ReadMem(Register.HL);
+    DoAnd(val);
+    Register.PC += 1;
+    return 8;
+}
+
 static cycles Op_AndImmediate()
 {
     //2 bytes, 8 cycles, Flags Z010
@@ -325,6 +334,15 @@ static cycles Op_OrRegister(byte* pR)
     DoOr(*pR);
     Register.PC += 1;
     return 4;
+}
+
+static cycles Op_OrAddr()
+{
+    //1 byte, 8 cycles, Flags Z000
+    byte val = ReadMem(Register.HL);
+    DoOr(val);
+    Register.PC += 1;
+    return 8;
 }
 
 static cycles Op_OrImmediate()
@@ -350,6 +368,15 @@ static cycles Op_XorRegister(byte* pR)
     return 4;
 }
 
+static cycles Op_XorAddr()
+{
+    //1 byte, 8 cycles, Flags Z000
+    byte val = ReadMem(Register.HL);
+    DoXor(val);
+    Register.PC += 1;
+    return 8;
+}
+
 static cycles Op_XorImmediate()
 {
     //2 bytes, 8 cycles, Flags Z000
@@ -371,7 +398,7 @@ static cycles Op_Complement()
 static void DoIncrement8(byte* pR)
 {
     //In this case we can just check if the bottom four bits are set because increasing by one will carry.
-    bool halfCarry = ((Register.C & 0xF) == 0xF);
+    bool halfCarry = ((*pR & 0xF) == 0xF);
     (*pR)++;
     SetFlags(*pR == 0 ? FlagSet_On : FlagSet_Off, FlagSet_Off, halfCarry ? FlagSet_On : FlagSet_Off, FlagSet_Leave);
 }
@@ -405,7 +432,7 @@ static cycles Op_Increment16(uint16_t* pR)
 static void DoDecrement8(byte* pR)
 {
     //In this case we can just check if the bottom four bits are unset because decreasing by one will carry.
-    bool halfCarry = ((Register.C & 0xF) == 0x0);
+    bool halfCarry = ((*pR & 0xF) == 0x0);
     (*pR)--;
     SetFlags(*pR == 0 ? FlagSet_On : FlagSet_Off, FlagSet_On, halfCarry ? FlagSet_On : FlagSet_Off, FlagSet_Leave);
 }
@@ -629,10 +656,10 @@ static cycles Op_ReturnIf(enum Flag flag, bool ifTrue)
     if (ifTrue == IsFlagSet(flag))
     {
         Register.PC = StackPop();
-        return 12;
+        return 20;
     }
 
-    Register.PC += 2;
+    Register.PC += 1;
     return 8;
 }
 
@@ -911,7 +938,7 @@ static cycles Op_SetCarryFlag()
 static cycles Op_Restart(uint16_t addr)
 {
     //1 byte, 16 cycles, No flags
-    StackPush(Register.PC);
+    StackPush(Register.PC + 1);
     Register.PC = addr;
     return 16;
 }
@@ -1052,6 +1079,7 @@ static cycles HandleOpCode()
         case 0xA3: return Op_AndRegister(&Register.E);
         case 0xA4: return Op_AndRegister(&Register.H);
         case 0xA5: return Op_AndRegister(&Register.L);
+        case 0xA6: return Op_AndAddr();
         case 0xE6: return Op_AndImmediate();
 
         //Or
@@ -1062,6 +1090,7 @@ static cycles HandleOpCode()
         case 0xB3: return Op_OrRegister(&Register.E);
         case 0xB4: return Op_OrRegister(&Register.H);
         case 0xB5: return Op_OrRegister(&Register.L);
+        case 0xB6: return Op_OrAddr();
         case 0xF6: return Op_OrImmediate();
 
         //Xor
@@ -1072,6 +1101,7 @@ static cycles HandleOpCode()
         case 0xAB: return Op_XorRegister(&Register.E);
         case 0xAC: return Op_XorRegister(&Register.H);
         case 0xAD: return Op_XorRegister(&Register.L);
+        case 0xAE: return Op_XorAddr();
         case 0xEE: return Op_XorImmediate();
 
         //Complement
@@ -1515,12 +1545,11 @@ void CheckInterrupts()
     if (!IME || *Register_IF == 0)
         return;
 
-    IME = false;
-
     for (int i = 0; i < NumInterrupts; ++i)
     {
         if (IsRegisterBitSet(Register_IE, i) && IsRegisterBitSet(Register_IF, i))
         {
+            IME = false;
             CPURunning = true;
             UnsetRegisterBit(Register_IF, i);
             StackPush(Register.PC);

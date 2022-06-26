@@ -1,3 +1,5 @@
+#include <stdlib.h>
+
 #include "system.h"
 #include "debug.h"
 
@@ -48,6 +50,13 @@ int main(int argc, char** argv)
 
 #if DEBUG_ENABLED
     DebugInit();
+
+    if (argc > 2)
+    {        
+        char* pRet;
+        uint16_t bp = (uint16_t)strtoul(argv[2], &pRet, 16);
+        DebugToggleBreakpoint(bp);
+    }
 #endif
 
     Run();

@@ -30,9 +30,24 @@ bool FileRead(const char* pFileName, byte* pBuffer, int bufferSize)
     else
     {
         DebugPrint("Failed to open file");
-        assert(0);
     }
 
-    assert(bSuccess);
+    return bSuccess;
+}
+
+bool FileWrite(const char* pFileName, byte* pBuffer, int bufferSize)
+{
+    FILE* pFile = fopen(pFileName, "wb");
+
+    bool bSuccess = false;
+
+    if (pFile != NULL)
+    {
+        int sizeWrote = (int)fwrite(pBuffer, 1, bufferSize, pFile);
+        bSuccess = sizeWrote == bufferSize;
+
+        fclose(pFile);
+    }
+
     return bSuccess;
 }

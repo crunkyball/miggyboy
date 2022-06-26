@@ -3,3 +3,4 @@
 *.vs/
 *.gb
 build/
+disassembly_dump.txt

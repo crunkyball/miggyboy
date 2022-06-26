@@ -22,7 +22,10 @@
 #define RAM_ADDR 0xC000
 #define RAM_SIZE 8*1024
 
-//I/O Registers
+//Hardware Registers
+#define REGISTER_P1_ADDR 0xFF00
+extern byte* Register_P1;
+
 #define REGISTER_DIV_ADDR 0xFF04
 extern byte* Register_DIV;
 

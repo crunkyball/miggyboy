@@ -7,5 +7,6 @@
 #define MIN(a,b) ((a) < (b) ? (a) : (b))
 
 bool FileRead(const char* pFileName, byte* pBuffer, int bufferSize);
+bool FileWrite(const char* pFileName, byte* pBuffer, int bufferSize);
 
 #endif
