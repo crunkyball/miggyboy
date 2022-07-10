@@ -4,12 +4,15 @@
 #include <stdio.h>
 
 #include "platform_app.h"
-#include "system.h"
 #include "cpu.h"
 #include "ppu.h"
 #include "utils.h"
 
 #include "debug.h"
+#include "platform_debug.h"
+
+static DirectionInputCallbackFunc DirectionInputCallback = NULL;
+static ButtonInputCallbackFunc ButtonInputCallback = NULL;
 
 static LARGE_INTEGER startTime;
 static LARGE_INTEGER frequency;
@@ -232,7 +235,7 @@ static void DrawDebugInfo()
     const int TILE_POS_START_X = 170;
     const int TILE_POS_START_Y = 180;
     const int TILES_PER_LINE = 32;
-    for (int tileAddr = VRAM_TILE_DATA_ADDR, tileIdx = 0; tileAddr < (VRAM_TILE_DATA_ADDR + VRAM_TILE_DATA_SIZE); tileAddr += BYTES_PER_TILE, ++tileIdx)
+    for (int tileAddr = VRAM_TILE_DATA_ADDR_0, tileIdx = 0; tileAddr < (VRAM_TILE_DATA_ADDR_1 + VRAM_TILE_DATA_SIZE); tileAddr += BYTES_PER_TILE, ++tileIdx)
     {
         int tilePosX = TILE_POS_START_X + ((tileIdx % TILES_PER_LINE) * (TILE_WIDTH + 1));
         int tilePosY = TILE_POS_START_Y + ((tileIdx / TILES_PER_LINE) * (TILE_HEIGHT + 1));
@@ -263,36 +266,15 @@ static void DrawDebugInfo()
 
 #endif
 
-static void DrawBackground()
+static void RenderPPUScreenBuffer()
 {
-    //Need to do background select and whatnot.
-    /*for (byte* addr = &Mem[0x9800]; addr <= &Mem[0x9BFF]; ++addr)
-    {
-        byte id = *addr;
-    }*/
+    const enum Colour* pScreenBuffer = PPUGetScreenBuffer();
 
     for (int y = 0; y < SCREEN_RES_Y; ++y)
     {
         for (int x = 0; x < SCREEN_RES_X; ++x)
         {
-            int backgroundX = x + *Register_SCX;
-            int backgroundY = y + *Register_SCY;
-
-            int tileX = backgroundX / TILE_WIDTH;
-            int tileY = backgroundY / TILE_HEIGHT;
-            int tileIdx = (tileY * BACKGROUND_TILES_PER_LINE) + tileX;
-
-            byte* TileLayout = AccessMem(VRAM_TILE_MAP_0_ADDR);
-            byte* TileData = AccessMem(VRAM_TILE_DATA_ADDR);
-
-            byte tileId = TileLayout[tileIdx];
-
-            int tilePixX = backgroundX % TILE_WIDTH;
-            int tilePixY = backgroundY % TILE_HEIGHT;
-
-            byte* pTileData = &TileData[tileId * BYTES_PER_TILE];
-
-            enum Colour col = PPUGetTilePixColour(pTileData, tilePixX, tilePixY);
+            enum Colour col = pScreenBuffer[(y * SCREEN_RES_X) + x];
 
             switch (col)
             {
@@ -305,6 +287,16 @@ static void DrawBackground()
             SDL_RenderDrawPoint(WindowRenderer, x, y);
         }
     }
+}
+
+void AppRegisterDirectionInputCallback(DirectionInputCallbackFunc callback)
+{
+    DirectionInputCallback = callback;
+}
+
+void AppRegisterButtonInputCallback(ButtonInputCallbackFunc callback)
+{
+    ButtonInputCallback = callback;
 }
 
 bool AppInit()
@@ -374,7 +366,7 @@ bool AppTick()
             return false;
         }
 
-        if (e.type == SDL_KEYUP)
+        if (e.type == SDL_KEYDOWN)
         {
             switch (e.key.keysym.sym)
             {
@@ -386,6 +378,29 @@ bool AppTick()
                 case SDLK_b: ToggleDisassemblyBreakpoint(); break;
                 case SDLK_d: DebugDumpDisassembly(); break;
 #endif
+                case SDLK_UP: DirectionInputCallback(Input_Up, true); break;
+                case SDLK_DOWN: DirectionInputCallback(Input_Down, true); break;
+                case SDLK_LEFT: DirectionInputCallback(Input_Left, true); break;
+                case SDLK_RIGHT: DirectionInputCallback(Input_Right, true); break;
+                case SDLK_z: ButtonInputCallback(Input_A, true); break;
+                case SDLK_x: ButtonInputCallback(Input_B, true); break;
+                case SDLK_s: ButtonInputCallback(Input_Start, true); break;
+                case SDLK_a: ButtonInputCallback(Input_Select, true); break;
+            }
+        }
+
+        if (e.type == SDL_KEYUP)
+        {
+            switch (e.key.keysym.sym)
+            {
+                case SDLK_UP: DirectionInputCallback(Input_Up, false); break;
+                case SDLK_DOWN: DirectionInputCallback(Input_Down, false); break;
+                case SDLK_LEFT: DirectionInputCallback(Input_Left, false); break;
+                case SDLK_RIGHT: DirectionInputCallback(Input_Right, false); break;
+                case SDLK_z: ButtonInputCallback(Input_A, false); break;
+                case SDLK_x: ButtonInputCallback(Input_B, false); break;
+                case SDLK_s: ButtonInputCallback(Input_Start, false); break;
+                case SDLK_a: ButtonInputCallback(Input_Select, false); break;
             }
         }
     }
@@ -401,7 +416,7 @@ void AppPreRender()
 
 void AppRender()
 {
-    DrawBackground();
+    RenderPPUScreenBuffer();
 
 #if DEBUG_ENABLED
     DrawDebugInfo();

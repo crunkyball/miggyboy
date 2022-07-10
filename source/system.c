@@ -9,6 +9,7 @@
 
 #include "debug.h"
 
+#include PLATFORM_INCLUDE(PLATFORM_NAME/platform_app.h)
 #include PLATFORM_INCLUDE(PLATFORM_NAME/platform_debug.h)
 
 //Addressable Memory. This should be accessed via the Read/Write/Access functions to allow for memory mapping.
@@ -31,6 +32,7 @@ byte* Register_STAT = &Mem[REGISTER_STAT_ADDR];
 byte* Register_SCY = &Mem[REGISTER_SCY_ADDR];
 byte* Register_SCX = &Mem[REGISTER_SCX_ADDR];
 byte* Register_LY = &Mem[REGISTER_LY_ADDR];
+byte* Register_DMA = &Mem[REGISTER_DMA_ADDR];
 byte* Register_BGP = &Mem[REGISTER_BGP_ADDR];
 byte* Register_WY = &Mem[REGISTER_WY_ADDR];
 byte* Register_WX = &Mem[REGISTER_WX_ADDR];
@@ -52,8 +54,8 @@ static int TimerInterval[4] = {
     256     //16384Hz
 };
 
+static int DivIntervalCount = 0;
 static int TimerIntervalCount = 0;
-static byte Timer = 0;
 
 #define BOOT_ROM_SIZE 0x100
 static byte BootROM[BOOT_ROM_SIZE];
@@ -72,6 +74,12 @@ struct CartridgeHeader
     byte HeaderChecksum;    //0x014D
     byte GlobalChecksum[2]; //0x014E-0x014F
 };
+
+static DirectionInputCallbackFunc DirectionInputCallback = NULL;
+static ButtonInputCallbackFunc ButtonInputCallback = NULL;
+
+byte DirectionInputState = 0xFF;
+byte ButtonInputState = 0xFF;
 
 #if DEBUG_ENABLED
 static bool SingleStepMode = false;
@@ -105,24 +113,58 @@ void RegisterROMChangedCallback(CallbackFunc callback)
 }
 #endif
 
-void SetInputRegisterState()
+static void SetInputRegisterState()
 {
     byte directionButtonsMask = 1 << 4;
     byte actionButtonsMask = 1 << 5;
 
-    bool directionButtons = (*Register_P1 & directionButtonsMask) != 0;
-    bool actionButtons = (*Register_P1 & actionButtonsMask) != 0;
+    bool directionButtons = (*Register_P1 & directionButtonsMask) == 0;
+bool actionButtons = (*Register_P1 & actionButtonsMask) == 0;
 
-    //Still need to handle input. For now just say nothing was pressed.
-    *Register_P1 = 0xCF;
+*Register_P1 = 0xCF;
 
-    if (directionButtons)
+if (directionButtons)
+{
+    *Register_P1 |= directionButtonsMask;
+    *Register_P1 &= DirectionInputState;
+}
+else if (actionButtons)
+{
+    *Register_P1 |= actionButtonsMask;
+    *Register_P1 &= ButtonInputState;
+}
+}
+
+static void OnDirectionInput(enum DirectionInput input, bool pressed)
+{
+    if (pressed)
     {
-        *Register_P1 |= directionButtonsMask;
+        DirectionInputState ^= input;
     }
-    else if (actionButtons)
+    else
     {
-        *Register_P1 |= actionButtonsMask;
+        DirectionInputState |= input;
+    }
+}
+
+static void OnButtonInput(enum ButtonInput input, bool pressed)
+{
+    if (pressed)
+    {
+        ButtonInputState &= ~input;
+    }
+    else
+    {
+        ButtonInputState |= input;
+    }
+}
+
+static void DMAToSpriteTable()
+{
+    for (uint16_t destAddr = VRAM_SPRITE_TABLE_ADDR, sourceAddr = *Register_DMA * 0x100; destAddr < VRAM_SPRITE_TABLE_ADDR + VRAM_SPRITE_TABLE_SIZE; ++destAddr, ++sourceAddr)
+    {
+        byte val = ReadMem(sourceAddr);
+        WriteMem(destAddr, val);
     }
 }
 
@@ -146,11 +188,24 @@ byte ReadMem(uint16_t addr)
 void WriteMem(uint16_t addr, byte val)
 {
     byte* pAddr = AccessMem(addr);
-    *pAddr = val;
+
+    //Not allowed to write to ROM!
+    if (addr >= ROM_SIZE)
+    {
+        *pAddr = val;
+    }
 
     if (addr == REGISTER_P1_ADDR)
     {
         SetInputRegisterState();
+    }
+    else if (addr == REGISTER_DMA_ADDR)
+    {
+        DMAToSpriteTable();
+    }
+    else if (addr == REGISTER_DIV_ADDR)
+    {
+        *Register_DIV = 0;
     }
 }
 
@@ -167,6 +222,20 @@ void FireInterrupt(enum Interrupt interrupt)
 
 void TimerTick(cycles numCycles)
 {
+    if ((DivIntervalCount += numCycles) >= 0x4000)
+    {
+        DivIntervalCount -= 0x4000;
+
+        if (*Register_DIV == 0xFF)
+        {
+            *Register_DIV = 0;
+        }
+        else
+        {
+            (*Register_DIV)++;
+        }
+    }
+
     bool timerEnabled = (*Register_TAC & 0b100);
     int timerMode = (*Register_TAC & 0b11);
 
@@ -176,14 +245,14 @@ void TimerTick(cycles numCycles)
         {
             TimerIntervalCount -= TimerInterval[timerMode];
 
-            if (Timer == 0xFF)
+            if (*Register_TIMA == 0xFF)
             {
-                Timer = *Register_TMA;
+                *Register_TIMA = *Register_TMA;
                 FireInterrupt(Interrupt_Timer);
             }
             else
             {
-                Timer++;
+                (*Register_TIMA)++;
             }
         }
     }
@@ -261,6 +330,9 @@ bool SystemInit(const char* pRomFile)
     {
         return false;
     }
+
+    AppRegisterDirectionInputCallback(&OnDirectionInput);
+    AppRegisterButtonInputCallback(&OnButtonInput);
 
     return true;
 }

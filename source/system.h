@@ -2,6 +2,7 @@
 #define SYSTEM_H
 
 #include "types.h"
+#include "system_types.h"
 
 #define MEM_SIZE 64*1024
 
@@ -10,14 +11,14 @@
 
 #define VRAM_ADDR 0x8000
 #define VRAM_SIZE 8*1024
-#define VRAM_TILE_DATA_ADDR 0x8000
-#define VRAM_TILE_DATA_SIZE 6*1024  //6k for the whole tile data but it's split into two overlapping 4k sections for BG and Window below.
-#define VRAM_BG_TILE_DATA_0_ADDR 0x8800
-#define VRAM_BG_TILE_DATA_1_ADDR 0x8000
-#define VRAM_BG_TILE_DATA_SIZE 4*1024
-#define VRAM_TILE_MAP_0_ADDR 0x9800
-#define VRAM_TILE_MAP_1_ADDR 0x9C00
+#define VRAM_TILE_DATA_ADDR_0 0x8000
+#define VRAM_TILE_DATA_ADDR_1 0x8800
+#define VRAM_TILE_DATA_SIZE 4*1024
+#define VRAM_TILE_MAP_ADDR_0 0x9800
+#define VRAM_TILE_MAP_ADDR_1 0x9C00
 #define VRAM_TILE_MAP_SIZE 1*1024
+#define VRAM_SPRITE_TABLE_ADDR 0xFE00
+#define VRAM_SPRITE_TABLE_SIZE 160
 
 #define RAM_ADDR 0xC000
 #define RAM_SIZE 8*1024
@@ -56,6 +57,9 @@ extern byte* Register_SCX;
 #define REGISTER_LY_ADDR 0xFF44
 extern byte* Register_LY;
 
+#define REGISTER_DMA_ADDR 0xFF46
+extern byte* Register_DMA;
+
 #define REGISTER_BGP_ADDR 0xFF47
 extern byte* Register_BGP;
 
@@ -70,24 +74,6 @@ extern byte* Register_IE;
 
 //Interrupts
 #define NUM_INTERRUPTS 5
-
-enum Interrupt
-{
-    Interrupt_VBlank = 0,
-    Interrupt_STAT = 1,
-    Interrupt_Timer = 2,
-    //Interrupt_Serial = 3,
-    Interrupt_Joypad = 4
-};
-
-enum InterruptOp
-{
-    InterruptOp_VBlank = 0x40,
-    InterruptOp_STAT = 0x48,
-    InterruptOp_Timer = 0x50,
-    //InterruptOp_Serial = 0x58,
-    InterruptOp_Joypad = 0x60
-};
 
 //Graphics Stuff
 #define BACKGROUND_RES_X 256

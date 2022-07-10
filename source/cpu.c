@@ -395,6 +395,42 @@ static cycles Op_Complement()
     return 4;
 }
 
+static cycles Op_DecimalAdjust()
+{
+    //1 byte, 4 cycles, Flags Z-0C
+    bool carryFlag = false;
+
+    if (!IsFlagSet(Flag_Subtract))
+    {
+        if (IsFlagSet(Flag_Carry) || Register.A > 0x99)
+        {
+            Register.A += 0x60;
+            carryFlag = true;
+        }
+
+        if (IsFlagSet(Flag_HalfCarry) || (Register.A & 0x0F) > 0x09)
+        {
+            Register.A += 0x6;
+        }
+    }
+    else
+    {
+        if (IsFlagSet(Flag_Carry))
+        {
+            Register.A -= 0x60;
+        }
+
+        if (IsFlagSet(Flag_HalfCarry))
+        {
+            Register.A -= 0x6;
+        }
+    }
+
+    SetFlags(Register.A == 0 ? FlagSet_On : FlagSet_Off, FlagSet_Leave, FlagSet_Off, carryFlag ? FlagSet_On : FlagSet_Off);
+    Register.PC += 1;
+    return 4;
+}
+
 static void DoIncrement8(byte* pR)
 {
     //In this case we can just check if the bottom four bits are set because increasing by one will carry.
@@ -1106,6 +1142,9 @@ static cycles HandleOpCode()
 
         //Complement
         case 0x2F: return Op_Complement();
+
+        //Decimal Adjust
+        case 0x27: return Op_DecimalAdjust();
 
         //Increment
         case 0x3C: return Op_Increment8(&Register.A);

@@ -28,6 +28,7 @@
       <Filter>platform</Filter>
     </ClInclude>
     <ClInclude Include="..\..\source\debug.h" />
+    <ClInclude Include="..\..\source\system_types.h" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="platform">
