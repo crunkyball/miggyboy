@@ -80,12 +80,12 @@ void DebugDumpDisassembly()
     char* pDumpBuffer = malloc(DUMP_BUFFER_SIZE);
 
     int dumpBufferPos = 0;
-    
+
     for (int i = 0; i < DisassembledROMSize; ++i)
     {
         #define LINE_BUFFER_SIZE 64
         char lineBuffer[LINE_BUFFER_SIZE];
-        sprintf_s(lineBuffer, LINE_BUFFER_SIZE, "0x%.4X: %s\n", DisassembledROM[i].ROMAddr, DisassembledROM[i].OpStr);
+        snprintf(lineBuffer, LINE_BUFFER_SIZE, "0x%.4X: %s\n", DisassembledROM[i].ROMAddr, DisassembledROM[i].OpStr);
 
         int lineLen = (int)strlen(lineBuffer);
 
@@ -184,46 +184,46 @@ int DisassembleROMInstruction(uint16_t addr)
     {
         dataLocLen = 2; //strlen("d8")
         byte val = ReadMem(dataAddr);
-        sprintf_s(dataStr, 16, "$%x", val);
+        snprintf(dataStr, 16, "$%x", val);
     }
     //"d16" 16-bit data
     else if (pDataLoc = strstr(pOpStr, "d16"))
     {
         dataLocLen = 3; //strlen("d16")
         uint16_t val = ReadMem16(dataAddr);
-        sprintf_s(dataStr, 16, "$%.4x", val);
+        snprintf(dataStr, 16, "$%.4x", val);
     }
     //"a8" 8-bit unsigned data added to 0xFF00
     else if (pDataLoc = strstr(pOpStr, "a8"))
     {
         dataLocLen = 2; //strlen("a8")
         byte val = ReadMem(dataAddr);
-        sprintf_s(dataStr, 16, "$FF00+$%x", val);
+        snprintf(dataStr, 16, "$FF00+$%x", val);
     }
     //"a16" little-endian 16-bit address
     else if (pDataLoc = strstr(pOpStr, "a16"))
     {
         dataLocLen = 3; //strlen("a16")
         uint16_t val = ReadMem16(dataAddr);
-        sprintf_s(dataStr, 16, "$%.4x", val);
+        snprintf(dataStr, 16, "$%.4x", val);
     }
     //"r8" 8-bit signed data
     else if (pDataLoc = strstr(pOpStr, "r8"))
     {
         dataLocLen = 2; //strlen("r8")
         int8_t val = (int8_t)ReadMem(dataAddr);
-        sprintf_s(dataStr, 16, "%d", val);
+        snprintf(dataStr, 16, "%d", val);
     }
 
     if (pDataLoc != NULL)
     {
         int leftLen = (int)(pDataLoc - pOpStr);
-        strncpy_s(DisassembledROM[DisassembledROMSize].OpStr, MAX_OP_LENGTH, pOpStr, leftLen);
-        sprintf_s(DisassembledROM[DisassembledROMSize].OpStr + leftLen, MAX_OP_LENGTH - leftLen, "%s%s", dataStr, pDataLoc + dataLocLen);
+        strncpy(DisassembledROM[DisassembledROMSize].OpStr, pOpStr, leftLen);
+        snprintf(DisassembledROM[DisassembledROMSize].OpStr + leftLen, MAX_OP_LENGTH - leftLen, "%s%s", dataStr, pDataLoc + dataLocLen);
     }
     else
     {
-        sprintf_s(DisassembledROM[DisassembledROMSize].OpStr, MAX_OP_LENGTH, "%s", pOpStr);
+        snprintf(DisassembledROM[DisassembledROMSize].OpStr, MAX_OP_LENGTH, "%s", pOpStr);
     }
 
     DisassembledROM[DisassembledROMSize].ROMAddr = addr;

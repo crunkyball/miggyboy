@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<CodeBlocks_project_file>
+	<FileVersion major="1" minor="6" />
+	<Project>
+		<Option title="miggyboy" />
+		<Option pch_mode="2" />
+		<Option compiler="gcc" />
+		<Build>
+			<Target title="Debug">
+				<Option output="../../build/linux/Debug/miggyboy" prefix_auto="1" extension_auto="1" />
+				<Option working_dir="../../data" />
+				<Option object_output="../../build/linux/Debug" />
+				<Option type="1" />
+				<Option compiler="gcc" />
+				<Option use_console_runner="0" />
+				<Option parameters="tetris.gb" />
+				<Compiler>
+					<Add option="-g" />
+				</Compiler>
+			</Target>
+			<Target title="Release">
+				<Option output="../../build/linux/Release/miggyboy" prefix_auto="1" extension_auto="1" />
+				<Option working_dir="../../data" />
+				<Option object_output="../../build/linux/Release" />
+				<Option type="1" />
+				<Option compiler="gcc" />
+				<Option use_console_runner="0" />
+				<Option parameters="tetris.gb" />
+				<Compiler>
+					<Add option="-O2" />
+				</Compiler>
+				<Linker>
+					<Add option="-s" />
+				</Linker>
+			</Target>
+		</Build>
+		<Compiler>
+			<Add option="-Wall" />
+			<Add directory="../../source" />
+		</Compiler>
+		<Linker>
+			<Add option="-lSDL2" />
+		</Linker>
+		<Unit filename="../../source/cpu.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="../../source/cpu.h" />
+		<Unit filename="../../source/debug.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="../../source/debug.h" />
+		<Unit filename="../../source/linux/platform_app.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="../../source/linux/platform_app.h" />
+		<Unit filename="../../source/linux/platform_debug.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="../../source/linux/platform_debug.h" />
+		<Unit filename="../../source/main.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="../../source/opcode_debug.h" />
+		<Unit filename="../../source/ppu.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="../../source/ppu.h" />
+		<Unit filename="../../source/system.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="../../source/system.h" />
+		<Unit filename="../../source/system_types.h" />
+		<Unit filename="../../source/types.h" />
+		<Unit filename="../../source/utils.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="../../source/utils.h" />
+		<Extensions />
+	</Project>
+</CodeBlocks_project_file>

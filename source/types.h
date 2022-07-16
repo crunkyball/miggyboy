@@ -7,8 +7,11 @@
 #define STRINGIFY(X) #X
 #define PLATFORM_INCLUDE(X) STRINGIFY(X)
 
-#ifdef _WIN32
+#if defined(_WIN32)
 #define PLATFORM_NAME windows
+#elif defined(__linux__)
+#undef linux    //Non-standard definition in GCC
+#define PLATFORM_NAME linux
 #else
 #error Unknown platform!
 #endif

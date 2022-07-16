@@ -1,0 +1,89 @@
+# depslib dependency file v1.0
+1657802542 source:/home/darrell/dev/miggyboy/source/cpu.c
+	<stdio.h>
+	<assert.h>
+	"cpu.h"
+	"types.h"
+	"system.h"
+
+1657802542 /home/darrell/dev/miggyboy/source/cpu.h
+	"types.h"
+
+1657989226 /home/darrell/dev/miggyboy/source/types.h
+	<stdint.h>
+	<stdbool.h>
+
+1657802542 /home/darrell/dev/miggyboy/source/system.h
+	"types.h"
+	"system_types.h"
+
+1657802542 /home/darrell/dev/miggyboy/source/system_types.h
+
+1657878680 source:/home/darrell/dev/miggyboy/source/debug.c
+	"debug.h"
+	<stdio.h>
+	<stdlib.h>
+	<string.h>
+	"system.h"
+	"cpu.h"
+	"opcode_debug.h"
+	"utils.h"
+
+1657802542 /home/darrell/dev/miggyboy/source/debug.h
+	"types.h"
+	"system.h"
+
+1657802542 /home/darrell/dev/miggyboy/source/opcode_debug.h
+	<assert.h>
+	"types.h"
+
+1657802542 /home/darrell/dev/miggyboy/source/utils.h
+	"types.h"
+
+1657913489 source:/home/darrell/dev/miggyboy/source/linux/platform_app.c
+	<stddef.h>
+	<sys/time.h>
+	<SDL2/SDL.h>
+	"system.h"
+	"ppu.h"
+	"platform_app.h"
+
+1657877424 /home/darrell/dev/miggyboy/source/linux/platform_app.h
+	"types.h"
+	"system_types.h"
+
+1657893204 source:/home/darrell/dev/miggyboy/source/linux/platform_debug.c
+	<stdio.h>
+	<stdarg.h>
+	"platform_debug.h"
+
+1657830304 /home/darrell/dev/miggyboy/source/linux/platform_debug.h
+
+1657802542 source:/home/darrell/dev/miggyboy/source/main.c
+	<stdlib.h>
+	"system.h"
+	"debug.h"
+
+1657802542 source:/home/darrell/dev/miggyboy/source/ppu.c
+	<assert.h>
+	"ppu.h"
+	"system.h"
+
+1657802542 /home/darrell/dev/miggyboy/source/ppu.h
+	"types.h"
+
+1657802542 source:/home/darrell/dev/miggyboy/source/system.c
+	<stdio.h>
+	<assert.h>
+	<string.h>
+	"system.h"
+	"utils.h"
+	"cpu.h"
+	"ppu.h"
+	"debug.h"
+
+1657802542 source:/home/darrell/dev/miggyboy/source/utils.c
+	<stdio.h>
+	<assert.h>
+	"utils.h"
+
