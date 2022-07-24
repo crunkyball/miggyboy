@@ -1,6 +1,8 @@
 *.vcxproj.user
 *.suo
 *.vs/
+*.depend
+*.layout
 *.gb
 build/
 disassembly_dump.txt
