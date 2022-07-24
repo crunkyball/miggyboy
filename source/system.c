@@ -282,12 +282,19 @@ bool SystemInit(const char* pRomFile)
     //Reading from the cartridge when there isn't one in results in 0xFF.
     memset(ROM, 0xFF, ROM_SIZE);
 
+    #define USE_BOOT_ROM 1
+
+#if USE_BOOT_ROM
     if (!FileRead("dmg_boot.bin", BootROM, BOOT_ROM_SIZE))
     {
         DebugPrint("Failed to read boot rom file!\n");
         assert(0);
         return false;
     }
+#else
+    Mem[0xFF50] = 1;    //Unmap the boot rom.
+    startAddr = 0x100;
+#endif
 
     if (pRomFile != NULL)
     {

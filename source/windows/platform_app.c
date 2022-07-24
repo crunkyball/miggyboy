@@ -14,8 +14,8 @@
 static DirectionInputCallbackFunc DirectionInputCallback = NULL;
 static ButtonInputCallbackFunc ButtonInputCallback = NULL;
 
-static LARGE_INTEGER startTime;
-static LARGE_INTEGER frequency;
+static LARGE_INTEGER StartTime;
+static LARGE_INTEGER Frequency;
 
 static SDL_Window* Window;
 static SDL_Renderer* WindowRenderer;
@@ -301,8 +301,8 @@ void AppRegisterButtonInputCallback(ButtonInputCallbackFunc callback)
 
 bool AppInit()
 {
-    QueryPerformanceCounter(&startTime);
-    QueryPerformanceFrequency(&frequency);
+    QueryPerformanceCounter(&StartTime);
+    QueryPerformanceFrequency(&Frequency);
 
     if (SDL_Init(SDL_INIT_VIDEO) != 0)
     {
@@ -434,10 +434,10 @@ uint32_t AppGetTimeMS()
     QueryPerformanceCounter(&timeNow);
 
     LARGE_INTEGER elapsed;
-    elapsed.QuadPart = timeNow.QuadPart - startTime.QuadPart;
+    elapsed.QuadPart = timeNow.QuadPart - StartTime.QuadPart;
 
     //elapsed.QuadPart *= 1000000;	//Microseconds.
     elapsed.QuadPart *= 1000;		//Milliseconds.
 
-    return (uint32_t)(elapsed.QuadPart / frequency.QuadPart);
+    return (uint32_t)(elapsed.QuadPart / Frequency.QuadPart);
 }

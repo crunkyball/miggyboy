@@ -16,7 +16,11 @@
 #error Unknown platform!
 #endif
 
+#ifdef _DEBUG
 #define DEBUG_ENABLED 1
+#else
+#define DEBUG_ENABLED 0
+#endif
 
 typedef uint8_t byte;
 typedef int cycles;

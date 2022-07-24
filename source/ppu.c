@@ -231,7 +231,7 @@ void PPUTick(cycles numCycles)
     }
 
     //Render the line if we've changed.
-    if (mode != Mode_VBlank && currentLine != *Register_LY)
+    if (mode != Mode_VBlank && currentLine != *Register_LY && currentLine >= 0 && currentLine < SCREEN_RES_Y)
     {
         RenderScanline(currentLine);
     }
