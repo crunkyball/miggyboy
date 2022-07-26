@@ -15,6 +15,10 @@ enum Colour PPUGetTilePixColour(byte* pTileData, int x, int y);
 
 const enum Colour* PPUGetScreenBuffer();
 
+#if DEBUG_ENABLED
+void PPUScreenshotScreenBuffer();
+#endif
+
 bool PPUInit();
 void PPUTick(cycles numCycles);
 

@@ -34,8 +34,11 @@ void DebugDumpDisassembly();
 void DebugToggleBreakpoint(uint16_t disassemblyAddr);
 bool DebugHasBreakpoint(uint16_t disassemblyAddr);
 
+void DebugSetScreenshotTime(uint32_t time);
+
 void RegisterBreakpointHitCallback(CallbackFunc callback);
 
+void DebugTick(uint32_t dt);
 void DebugInit();
 
 #endif

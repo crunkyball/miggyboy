@@ -8,6 +8,7 @@
 
 #include "system.h"
 #include "cpu.h"
+#include "ppu.h"
 #include "opcode_debug.h"
 #include "utils.h"
 
@@ -25,6 +26,8 @@ int DebugCallstack[CALLSTACK_SIZE];
 int DebugCallstackHead = 0;
 
 uint16_t DebugBreakpoints[MAX_BREAKPOINTS];
+
+uint32_t DebugScreenshotTime = 0;
 
 static CallbackFunc BreakpointHitCallback = NULL;
 
@@ -144,6 +147,11 @@ bool DebugHasBreakpoint(uint16_t disassemblyAddr)
 void RegisterBreakpointHitCallback(CallbackFunc callback)
 {
     BreakpointHitCallback = callback;
+}
+
+void DebugSetScreenshotTime(uint32_t time)
+{
+    DebugScreenshotTime = time;
 }
 
 void ResetDisassembly()
@@ -314,6 +322,22 @@ void OnROMChanged()
     if (!JustInTimeDebugMode)
     {
         DisassembleROM();
+    }
+}
+
+void DebugTick(uint32_t dt)
+{
+    if (DebugScreenshotTime > 0)
+    {
+        if (DebugScreenshotTime <= dt)
+        {
+            PPUScreenshotScreenBuffer();
+            DebugScreenshotTime = 0;
+        }
+        else
+        {
+            DebugScreenshotTime -= dt;
+        }
     }
 }
 

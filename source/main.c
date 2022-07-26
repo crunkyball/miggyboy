@@ -2,6 +2,7 @@
 
 #include "system.h"
 #include "debug.h"
+#include <string.h>
 
 #include PLATFORM_INCLUDE(PLATFORM_NAME/platform_app.h)
 
@@ -16,6 +17,10 @@ void Run()
         lastTime = timeNow;
 
         SystemTick(dt);
+
+#if DEBUG_ENABLED
+        DebugTick(dt);
+#endif
 
         if (!AppTick())
         {
@@ -52,10 +57,29 @@ int main(int argc, char** argv)
     DebugInit();
 
     if (argc > 2)
-    {        
-        char* pRet;
-        uint16_t bp = (uint16_t)strtoul(argv[2], &pRet, 16);
-        DebugToggleBreakpoint(bp);
+    {
+        for (int arg = 2; arg < argc; ++arg)
+        {
+            const char* argStr = argv[arg];
+
+            if (argStr[0] == '-')
+            {
+                if (strcmp(argStr, "-bp") == 0 && (arg + 1) < argc)
+                {
+                    char* pRet;
+                    uint16_t bpAddr = (uint16_t)strtoul(argv[arg + 1], &pRet, 16);
+                    DebugToggleBreakpoint(bpAddr);
+                    arg++;
+                }
+                else if (strcmp(argStr, "-ss") == 0 && (arg + 1) < argc)
+                {
+                    char* pRet;
+                    uint32_t ssTime = (uint32_t)strtoul(argv[arg + 1], &pRet, 10);
+                    DebugSetScreenshotTime(ssTime);
+                    arg++;
+                }
+            }
+        }
     }
 #endif
 

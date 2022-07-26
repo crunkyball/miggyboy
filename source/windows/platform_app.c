@@ -7,6 +7,7 @@
 #include "cpu.h"
 #include "ppu.h"
 #include "utils.h"
+#include "system.h"
 
 #include "debug.h"
 #include "platform_debug.h"

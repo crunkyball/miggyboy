@@ -3,6 +3,50 @@
 #include "ppu.h"
 #include "system.h"
 
+#if DEBUG_ENABLED
+#include <string.h>
+#include "utils.h"
+
+void PPUScreenshotScreenBuffer()
+{
+    //Save the screen buffer as a TGA for debug purposes.
+
+    #define TGA_HEADER_SIZE 18
+    #define BITS_PER_PIXEL 8
+    byte tgaFileData[TGA_HEADER_SIZE + (SCREEN_RES_X * SCREEN_RES_Y)];
+    memset(tgaFileData, 0, sizeof(tgaFileData));
+    tgaFileData[2] = 3; //Black and white image.
+    tgaFileData[12] = SCREEN_RES_X;
+    tgaFileData[14] = SCREEN_RES_Y;
+    tgaFileData[16] = BITS_PER_PIXEL;
+    tgaFileData[17] = 0x20; //Left to right.
+
+    byte* pPixelData = &tgaFileData[TGA_HEADER_SIZE];
+    const enum Colour* pScreenBuffer = PPUGetScreenBuffer();
+
+    for (int y = 0; y < SCREEN_RES_Y; ++y)
+    {
+        for (int x = 0; x < SCREEN_RES_X; ++x)
+        {
+            byte col = 0;
+
+            switch (pScreenBuffer[(y * SCREEN_RES_X) + x])
+            {
+                case ColourWhite: col = 0xFF; break;
+                case ColourLightGrey: col = 0x54; break;
+                case ColourDarkGrey: col = 0xA9; break;
+                case ColourBlack: col = 0x00; break;
+            }
+
+            pPixelData[(y * SCREEN_RES_X) + x] = col;
+        }
+    }
+
+    FileWrite("screenshot.tga", tgaFileData, sizeof(tgaFileData));
+}
+
+#endif
+
 int CycleCounter = 0;
 
 #define NUM_SCANLINES 154	//0-143 for resolution, 144-153 for vblank

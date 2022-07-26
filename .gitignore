@@ -4,5 +4,6 @@
 *.depend
 *.layout
 *.gb
+*.tga
 build/
 disassembly_dump.txt
